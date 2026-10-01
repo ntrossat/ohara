@@ -20,11 +20,13 @@ Every piece of documentation can be drafted by AI. Nothing is published without 
 
 ### Documentation as code
 - All documentation stored in your GitHub repository
+- Markdown docs with frontmatter.
 - Every change goes through a validation workflow
 - Full history, review, and traceability
+- Configurable repository
 
 ### Multiple access layers
-- **HTML** for human reading and configuration
+- **HTML** for human reading and configuration (static site generated from the repo)
 - **REST API** for integrations
 - **MCP server** for AI agents and coding assistants
 - **AI chat** to ask questions about the documentation
@@ -32,6 +34,7 @@ Every piece of documentation can be drafted by AI. Nothing is published without 
 ### Coding assistant integration
 - Coding assistants access enterprise guidelines through MCP
 - Assistants can propose new or updated technical documentation as a pull request
+- Assistants HAVE to update documentation on each code PR
 
 ### AI-powered ingestion
 - A Claude agent imports existing documentation from external sources through MCP:
@@ -41,6 +44,7 @@ Every piece of documentation can be drafted by AI. Nothing is published without 
   - Google Drive
   - and more
 - Imported content is submitted as pull requests for review
+- Prompt injection review
 
 ### Project onboarding
 - An MCP command configures an existing project to use the main Doc Robin repository as its documentation and guideline source
@@ -107,5 +111,4 @@ Contributions are welcome. Open an issue or submit a pull request.
 
 ## License
 
-TBD
-
+[Apache-2.0](LICENSE)
