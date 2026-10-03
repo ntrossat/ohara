@@ -21,14 +21,9 @@ UNITED is an open-source enterprise documentation manager. AI keeps documentatio
 
 ## Repositories
 
-- This repo (`ntrossat/united`) holds the application code, including the HTML website.
-- All documentation lives in [`ntrossat/united-docs`](https://github.com/ntrossat/united-docs). Never add documentation to this repo.
-- A merge to `main` in `united-docs` triggers a site rebuild here. See `architecture/deployment.md` in `united-docs`.
-
-## Documentation
-
-- Use [`ntrossat/united-docs`](https://github.com/ntrossat/united-docs) as the reference for architecture, decisions, and guidelines. Read it before designing or changing anything.
-- Keep it up to date. When a change here affects the documented behavior, architecture, or setup, update `united-docs` in the same task through a PR on that repo.
+- This repo holds the application code, including the HTML website. Never add documentation to it.
+- Documentation lives in a separate, configurable docs repository. Each company points UNITED to its own repository. Never hard-code a docs repository name.
+- A merge to `main` in the docs repository triggers a site rebuild here.
 
 ## Conventions
 
