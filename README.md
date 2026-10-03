@@ -1,8 +1,8 @@
-# Doc Robin
+# UNITED — UNIfied Technical Entreprise Documentation
 
 **AI-generated, human-controlled.**
 
-Doc Robin is an open-source, unified enterprise documentation manager. It keeps all enterprise documentation and engineering guidelines in GitHub, lets AI agents generate and update them, and requires a human to approve every change.
+UNITED is an open-source, unified enterprise documentation manager. It keeps all enterprise documentation and engineering guidelines in GitHub, lets AI agents generate and update them, and requires a human to approve every change.
 
 ---
 
@@ -47,7 +47,7 @@ Every piece of documentation can be drafted by AI. Nothing is published without 
 - Prompt injection review
 
 ### Project onboarding
-- An MCP command configures an existing project to use the main Doc Robin repository as its documentation and guideline source
+- An MCP command configures an existing project to use the main UNITED repository as its documentation and guideline source
 
 ---
 
@@ -62,7 +62,7 @@ flowchart LR
         D[Drive]
     end
 
-    subgraph DocRobin[Doc Robin]
+    subgraph UNITED[UNITED]
         A[Claude Agent<br/>ingestion]
         API[FastAPI<br/>REST API]
         MCP[MCP Server]
