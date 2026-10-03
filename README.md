@@ -49,6 +49,24 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ---
 
+## Command
+/united-init => Configure the active project
+/united-ingest => Pull and rewrite existing documentation & guideline into UNITED
+/united-review => Review active project against documentation & guideline
+
+---
+
+## Workflow
+- Architects define guidelines
+- Coding assistant uses them and proposes architecture on new feature
+- Architects and Engineers review
+- Coding assistant develops based on the approved plan
+- Coding assistant updates the documentation
+- Engineers review
+
+
+---
+
 ## Getting started
 
 > Installation instructions coming soon.
