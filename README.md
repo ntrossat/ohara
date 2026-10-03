@@ -8,7 +8,7 @@ UNITED is an open-source, unified enterprise documentation manager. It keeps all
 
 ## Principle
 
-Every piece of documentation are updated by AI, approved by human.
+Every piece of documentation is updated by AI and approved by a human.
 
 - AI ingests, writes, and proposes.
 - Humans review, approve, and merge.
