@@ -2,17 +2,17 @@
 
 **AI-generated, human-controlled.**
 
-UNITED is an open-source, unified enterprise documentation manager. It keeps all enterprise documentation and engineering guidelines in GitHub, lets AI agents generate and update them, and requires a human to approve every change.
+UNITED is an open-source, unified enterprise documentation manager. It keeps all enterprise documentation and engineering guidelines up-to-date using AI.
 
 ---
 
 ## Principle
 
-Every piece of documentation can be drafted by AI. Nothing is published without human validation.
+Every piece of documentation are updated by AI, approved by human.
 
 - AI ingests, writes, and proposes.
 - Humans review, approve, and merge.
-- GitHub is the single source of truth.
+- UNITED is the single source of truth.
 
 ---
 
@@ -20,21 +20,18 @@ Every piece of documentation can be drafted by AI. Nothing is published without 
 
 ### Documentation as code
 - All documentation stored in your GitHub repository
-- Markdown docs with frontmatter.
 - Every change goes through a validation workflow
 - Full history, review, and traceability
 - Configurable repository
 
 ### Multiple access layers
-- **HTML** for human reading and configuration (static site generated from the repo)
-- **REST API** for integrations
+- **HTML** for human reading and configuration
 - **MCP server** for AI agents and coding assistants
 - **AI chat** to ask questions about the documentation
 
 ### Coding assistant integration
 - Coding assistants access enterprise guidelines through MCP
-- Assistants can propose new or updated technical documentation as a pull request
-- Assistants HAVE to update documentation on each code PR
+- Assistants update technical documentation 
 
 ### AI-powered ingestion
 - A Claude agent imports existing documentation from external sources through MCP:
@@ -44,56 +41,11 @@ Every piece of documentation can be drafted by AI. Nothing is published without 
   - Google Drive
   - and more
 - Imported content is submitted as pull requests for review
-- Prompt injection review
+- Security & Prompt injection review
 
 ### Project onboarding
 - An MCP command configures an existing project to use the main UNITED repository as its documentation and guideline source
 
----
-
-## Architecture
-
-```mermaid
-flowchart LR
-    subgraph Sources
-        J[Jira]
-        C[Confluence]
-        G[GitHub]
-        D[Drive]
-    end
-
-    subgraph UNITED[UNITED]
-        A[Claude Agent<br/>ingestion]
-        API[FastAPI<br/>REST API]
-        MCP[MCP Server]
-        UI[React / Vite<br/>HTML + AI chat]
-    end
-
-    REPO[(GitHub<br/>documentation repo)]
-    H[Human reviewer]
-    CA[Coding assistants]
-
-    Sources --> A
-    A -->|pull request| REPO
-    CA <-->|guidelines / proposals| MCP
-    MCP -->|pull request| REPO
-    H -->|approve & merge| REPO
-    REPO --> API
-    API --> UI
-    API --> MCP
-```
-
----
-
-## Tech stack
-
-| Layer | Technology |
-|---|---|
-| Agents | Claude Agent SDK |
-| Backend | Python, FastAPI |
-| Frontend | React, Vite |
-| Storage | GitHub |
-| Agent interface | MCP |
 
 ---
 
