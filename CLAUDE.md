@@ -19,6 +19,17 @@ UNITED is an open-source enterprise documentation manager. AI keeps documentatio
   - `/united-review` reviews the active project against the guidelines.
 - **Workflow:** architects define guidelines, the coding assistant proposes an architecture for each new feature, architects and engineers review it, the assistant builds from the approved plan and updates the docs, and engineers review the result.
 
+## Repositories
+
+- This repo (`ntrossat/united`) holds the application code, including the HTML website.
+- All documentation lives in [`ntrossat/united-docs`](https://github.com/ntrossat/united-docs). Never add documentation to this repo.
+- A merge to `main` in `united-docs` triggers a site rebuild here. See `architecture/deployment.md` in `united-docs`.
+
+## Documentation
+
+- Use [`ntrossat/united-docs`](https://github.com/ntrossat/united-docs) as the reference for architecture, decisions, and guidelines. Read it before designing or changing anything.
+- Keep it up to date. When a change here affects the documented behavior, architecture, or setup, update `united-docs` in the same task through a PR on that repo.
+
 ## Conventions
 
 - Use Conventional Commits (`docs:`, `chore:`, …).
