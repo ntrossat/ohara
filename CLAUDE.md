@@ -12,6 +12,7 @@ UNITED is an open-source enterprise documentation manager. AI keeps documentatio
 
 - **Docs as code:** documentation lives in a configurable GitHub repository. Every change goes through a PR review workflow.
 - **Access layers:** an HTML UI for reading and configuration, an MCP server for AI agents and coding assistants, and an AI chat over the docs.
+- **Access control:** the website uses GitHub SSO and mirrors the docs repository's access rights. A public repository means a public website. A private repository requires sign-in, and only users with access to the repository can read the website.
 - **Ingestion:** a Claude agent imports existing docs through MCP (Jira, Confluence, GitHub, Google Drive). It submits them as PRs, with a review for security and prompt injection.
 - **Planned commands:**
   - `/united-init` configures the active project.

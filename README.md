@@ -29,6 +29,12 @@ Every piece of documentation is updated by AI and approved by a human.
 - **MCP server** for AI agents and coding assistants
 - **AI chat** to ask questions about the documentation
 
+### Access control
+- GitHub SSO authentication
+- Website access mirrors the documentation repository:
+  - Public repository: public website
+  - Private repository: sign-in required, and only users with access to the repository can read the website
+
 ### Coding assistant integration
 - Coding assistants access enterprise guidelines through MCP
 - Assistants update technical documentation 
