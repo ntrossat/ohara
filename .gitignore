@@ -32,3 +32,9 @@ npm-debug.log*
 
 # Superpowers
 docs/superpowers/
+
+# Frontend build copied into the backend image
+backend/ohara/static/
+
+# Local data dir
+backend/.data/

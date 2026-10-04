@@ -1,0 +1,13 @@
+services:
+  ohara:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      OHARA_URL: ${OHARA_URL:?Set OHARA_URL to the address people use to open Ohara}
+    volumes:
+      - ohara-data:/data
+    restart: unless-stopped
+
+volumes:
+  ohara-data:

@@ -1,8 +1,8 @@
-# UNITED — UNIfied Technical Entreprise Documentation
+# Ohara — One central place for all enterprise knowledge
 
 **AI-generated, human-controlled.**
 
-UNITED is an open-source, unified enterprise documentation manager. It keeps all enterprise documentation and engineering guidelines up-to-date using AI.
+Ohara is an open-source documentation manager: one central place for all enterprise knowledge. It keeps all enterprise documentation and engineering guidelines up to date using AI.
 
 ---
 
@@ -12,7 +12,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 - AI ingests, writes, and proposes.
 - Humans review, approve, and merge.
-- UNITED is the single source of truth.
+- Ohara is the single source of truth.
 
 ---
 
@@ -50,15 +50,15 @@ Every piece of documentation is updated by AI and approved by a human.
 - Security & Prompt injection review
 
 ### Project onboarding
-- An MCP command configures an existing project to use the main UNITED repository as its documentation and guideline source
+- An MCP command configures an existing project to use the main Ohara repository as its documentation and guideline source
 
 
 ---
 
 ## Command
-/united-init => Configure the active project
-/united-ingest => Pull and rewrite existing documentation & guideline into UNITED
-/united-review => Review active project against documentation & guideline
+/ohara-init => Configure the active project
+/ohara-ingest => Pull and rewrite existing documentation & guideline into Ohara
+/ohara-review => Review active project against documentation & guideline
 
 ---
 
@@ -75,7 +75,11 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ## Getting started
 
-> Installation instructions coming soon.
+1. Set `OHARA_URL` to the address people will use to open Ohara (see `.env.example`).
+2. Run `docker compose up -d`.
+3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository.
+
+Your docs repository holds plain Markdown files. Folders become the menu, and each page's first heading is its title.
 
 ---
 
