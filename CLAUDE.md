@@ -25,7 +25,8 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 Ohara is an open-source enterprise documentation manager. AI keeps documentation and engineering guidelines up to date, and a human approves every change.
 
 - **Docs as code:** documentation lives in a configurable GitHub repository. Every change goes through a PR review workflow.
-- **Access layers:** an HTML UI for reading and configuration, an MCP server for AI agents and coding assistants, and an AI chat over the docs.
+- **Access layers:** an HTML UI for reading and configuration, and an MCP server for AI agents and coding assistants.
+- **Roadmap:** an AI chat over the docs.
 - **Access control:** the website uses GitHub SSO and mirrors the docs repository's access rights. A public repository means a public website. A private repository requires sign-in, and only users with access to the repository can read the website.
 - **Ingestion:** a Claude agent imports existing docs through MCP (Jira, Confluence, GitHub, Google Drive). It submits them as PRs, with a review for security and prompt injection.
 - **Planned commands:**

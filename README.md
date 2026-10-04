@@ -27,7 +27,6 @@ Every piece of documentation is updated by AI and approved by a human.
 ### Multiple access layers
 - **HTML** for human reading and configuration
 - **MCP server** for AI agents and coding assistants
-- **AI chat** to ask questions about the documentation
 
 ### Access control
 - GitHub SSO authentication
@@ -52,6 +51,11 @@ Every piece of documentation is updated by AI and approved by a human.
 ### Project onboarding
 - An MCP command configures an existing project to use the main Ohara repository as its documentation and guideline source
 
+
+---
+
+## Roadmap
+- **AI chat** to ask questions about the documentation
 
 ---
 
