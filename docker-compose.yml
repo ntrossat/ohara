@@ -8,6 +8,15 @@ services:
     volumes:
       - ohara-data:/data
     restart: unless-stopped
+    # `docker compose up --watch` rebuilds and restarts on code changes.
+    develop:
+      watch:
+        - path: ./frontend
+          action: rebuild
+          ignore: [node_modules/, dist/]
+        - path: ./backend
+          action: rebuild
+          ignore: [.venv/, .data/, tests/, ohara/static/]
 
 volumes:
   ohara-data:

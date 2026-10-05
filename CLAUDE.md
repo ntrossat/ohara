@@ -12,7 +12,7 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 - Backend dev server: `cd backend && OHARA_DATA_DIR=.data uv run uvicorn ohara.main:app --reload`
 - Frontend dev server: `cd frontend && npm run dev` (proxies `/api` to port 8000)
 - Frontend build and type check: `cd frontend && npm run build`
-- Full app: `OHARA_URL=http://localhost:8000 docker compose up --build`
+- Full app: `OHARA_URL=http://localhost:8000 docker compose up --build --watch` (rebuilds on code changes)
 
 ## Layout
 
