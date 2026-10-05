@@ -17,6 +17,13 @@ def test_manifest_points_github_back_to_this_instance(client):
     assert manifest["hook_attributes"]["url"] == "https://docs.example.com/api/github/webhook"
     assert manifest["default_permissions"] == {"contents": "read", "metadata": "read"}
     assert manifest["public"] is False
+    assert manifest["name"] == "Ohara docs.example.com"
+
+
+def test_local_app_names_differ():
+    from ohara import github
+
+    assert github.app_name("http://localhost:8000") != github.app_name("http://localhost:8000")
 
 
 @respx.mock

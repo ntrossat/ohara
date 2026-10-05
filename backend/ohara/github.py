@@ -3,6 +3,7 @@
 import hashlib
 import hmac
 import ipaddress
+import secrets
 import time
 
 import httpx
@@ -36,9 +37,15 @@ def is_public(base_url: str) -> bool:
         return True
 
 
+def app_name(base_url: str) -> str:
+    """App names are unique across GitHub: use the instance's host, or a random suffix for local runs."""
+    suffix = httpx.URL(base_url).host if is_public(base_url) else secrets.token_hex(3)
+    return f"Ohara {suffix}"[:34]
+
+
 def manifest(base_url: str) -> dict:
     app = {
-        "name": "Ohara docs",
+        "name": app_name(base_url),
         "url": base_url,
         "description": "Ohara documentation website",
         "public": False,
