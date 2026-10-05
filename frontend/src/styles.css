@@ -438,26 +438,54 @@ pre {
   padding: 0;
 }
 
-.sidebar .nav-group .nav-group {
-  margin-left: 12px;
-}
-
-.nav-folder {
-  display: block;
-  margin-top: 24px;
-  padding: 0 12px 8px;
-  color: var(--muted);
-  font: 400 12px var(--mono);
-}
-
-.nav-link {
+.nav-search {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  height: 40px;
+  margin-bottom: 16px;
+  padding: 0 12px;
+  border: var(--border);
+  border-radius: var(--radius-item);
+  background: var(--bg-2);
+  color: var(--muted);
+}
+
+.nav-search:focus-within {
+  border-color: var(--muted);
+}
+
+.nav-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: 500 14px var(--sans);
+}
+
+.nav-search input::placeholder {
+  color: var(--muted);
+}
+
+.nav-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.nav-search kbd {
+  padding: 1px 6px;
+  border: var(--border);
+  border-radius: var(--radius-code);
+  font: 400 11px var(--mono);
+}
+
+.nav-link {
+  display: block;
+  padding: 7px 12px;
   border-radius: var(--radius-item);
   color: var(--muted);
-  font-size: 15px;
+  font-size: 14px;
   text-decoration: none;
 }
 
@@ -471,13 +499,84 @@ pre {
   font-weight: 600;
 }
 
-.nav-link.active::before {
-  content: "";
+/* Folders: a chevron to collapse, then the folder's title, linked to its index page when it has one. */
+
+.nav-folder {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  padding-left: 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nav-folder a,
+.nav-folder span {
+  flex: 1;
+  padding: 7px 8px 7px 0;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.nav-folder a:hover {
+  color: var(--clay-hover);
+}
+
+.nav-folder a.active {
+  color: var(--clay);
+}
+
+.nav-toggle {
   flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.nav-toggle:hover {
+  color: var(--ink);
+}
+
+.nav-toggle svg {
+  transition: transform 0.2s var(--ease);
+}
+
+.nav-toggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+
+/* Nested pages hang off a guide line under the folder's chevron; the active page marks it in clay. */
+
+.sidebar .nav-children {
+  margin-left: 18px;
+  border-left: var(--border);
+}
+
+.nav-children .nav-link {
+  position: relative;
+  padding-left: 14px;
+  border-radius: 0 var(--radius-item) var(--radius-item) 0;
+}
+
+.nav-children .nav-link.active::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 -1px;
+  width: 2px;
   background: var(--clay);
+}
+
+.nav-empty {
+  margin: 8px 0;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 14px;
 }
 
 .content {

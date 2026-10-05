@@ -20,7 +20,15 @@ export default function Docs({ status }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [headings, setHeadings] = useState<Heading[]>([]);
+  const [query, setQuery] = useState("");
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const article = useRef<HTMLElement>(null);
+
+  function toggle(folder: string) {
+    const next = new Set(collapsed);
+    if (!next.delete(folder)) next.add(folder);
+    setCollapsed(next);
+  }
 
   useEffect(() => {
     get<NavNode[]>("/api/nav").then(setNav, () => {});
@@ -28,6 +36,7 @@ export default function Docs({ status }: Props) {
 
   useEffect(() => {
     setMenuOpen(false);
+    setQuery("");
     get<Page>(`/api/page?path=${encodeURIComponent(path)}`).then(
       (page) => setLoaded({ path, page }),
       (error) => {
@@ -97,10 +106,16 @@ export default function Docs({ status }: Props) {
       </header>
 
       <nav id="sidebar" className={menuOpen ? "sidebar open" : "sidebar"} aria-label="Documentation">
-        <NavLink to="/" end className="nav-link">
-          Overview
-        </NavLink>
-        <Tree nodes={nav} />
+        <Search value={query} onChange={setQuery} />
+        {(!query || matches("Overview", query)) && (
+          <NavLink to="/" end className="nav-link">
+            Overview
+          </NavLink>
+        )}
+        <Tree nodes={query ? filter(nav, query) : nav} collapsed={query ? new Set() : collapsed} onToggle={toggle} />
+        {query && !matches("Overview", query) && filter(nav, query).length === 0 && (
+          <p className="nav-empty">No pages match “{query}”</p>
+        )}
         {status.user && (
           <div className="sidebar-account">
             <span>Signed in as {status.user.login}</span>
@@ -175,23 +190,88 @@ export default function Docs({ status }: Props) {
   );
 }
 
-function Tree({ nodes }: { nodes: NavNode[] }) {
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+function Search({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        input.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
-    <ul>
+    <label className="nav-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" />
+        <path d="M20 20l-3.5-3.5" />
+      </svg>
+      <input
+        ref={input}
+        type="search"
+        placeholder="Search docs"
+        aria-label="Search docs"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Escape" && onChange("")}
+      />
+      {!value && <kbd>{isMac ? "⌘K" : "Ctrl K"}</kbd>}
+    </label>
+  );
+}
+
+function matches(title: string, query: string): boolean {
+  return title.toLowerCase().includes(query.trim().toLowerCase());
+}
+
+/** Keeps pages whose title matches, with the folders that lead to them. */
+function filter(nodes: NavNode[], query: string): NavNode[] {
+  return nodes.flatMap((node) => {
+    const children = filter(node.children, query);
+    return matches(node.title, query) || children.length ? [{ ...node, children }] : [];
+  });
+}
+
+const Chevron = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M6 9l6 6 6-6" />
+  </svg>
+);
+
+type TreeProps = { nodes: NavNode[]; collapsed: Set<string>; onToggle: (folder: string) => void; nested?: boolean };
+
+function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
+  return (
+    <ul className={nested ? "nav-children" : undefined}>
       {nodes.map((node) =>
         node.folder !== undefined ? (
-          <li key={node.folder} className="nav-group">
-            <span className="nav-folder">{node.folder.split("/").pop()}/</span>
-            {node.path !== null && (
-              <ul>
-                <li>
-                  <NavLink to={`/${node.path}`} end className="nav-link">
-                    {node.title}
-                  </NavLink>
-                </li>
-              </ul>
+          <li key={node.folder}>
+            <div className="nav-folder">
+              <button
+                className="nav-toggle"
+                aria-expanded={!collapsed.has(node.folder)}
+                aria-label={`${collapsed.has(node.folder) ? "Expand" : "Collapse"} ${node.title}`}
+                onClick={() => onToggle(node.folder!)}
+              >
+                <Chevron />
+              </button>
+              {node.path !== null ? (
+                <NavLink to={`/${node.path}`} end>
+                  {node.title}
+                </NavLink>
+              ) : (
+                <span>{node.title}</span>
+              )}
+            </div>
+            {node.children.length > 0 && !collapsed.has(node.folder) && (
+              <Tree nodes={node.children} collapsed={collapsed} onToggle={onToggle} nested />
             )}
-            {node.children.length > 0 && <Tree nodes={node.children} />}
           </li>
         ) : (
           <li key={node.path}>
