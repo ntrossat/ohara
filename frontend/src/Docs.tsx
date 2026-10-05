@@ -24,9 +24,10 @@ export default function Docs({ status }: Props) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const article = useRef<HTMLElement>(null);
 
-  function toggle(folder: string) {
+  function toggle(folder: string, open = collapsed.has(folder)) {
     const next = new Set(collapsed);
-    if (!next.delete(folder)) next.add(folder);
+    if (open) next.delete(folder);
+    else next.add(folder);
     setCollapsed(next);
   }
 
@@ -244,7 +245,7 @@ const Chevron = () => (
   </svg>
 );
 
-type TreeProps = { nodes: NavNode[]; collapsed: Set<string>; onToggle: (folder: string) => void; nested?: boolean };
+type TreeProps = { nodes: NavNode[]; collapsed: Set<string>; onToggle: (folder: string, open?: boolean) => void; nested?: boolean };
 
 function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
   return (
@@ -252,23 +253,40 @@ function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
       {nodes.map((node) =>
         node.folder !== undefined ? (
           <li key={node.folder}>
-            <div className="nav-folder">
-              <button
-                className="nav-toggle"
-                aria-expanded={!collapsed.has(node.folder)}
-                aria-label={`${collapsed.has(node.folder) ? "Expand" : "Collapse"} ${node.title}`}
-                onClick={() => onToggle(node.folder!)}
-              >
-                <Chevron />
-              </button>
-              {node.path !== null ? (
-                <NavLink to={`/${node.path}`} end>
+            {node.path !== null ? (
+              <div className="nav-folder">
+                <button
+                  className="nav-toggle"
+                  aria-expanded={!collapsed.has(node.folder)}
+                  aria-label={`${collapsed.has(node.folder) ? "Expand" : "Collapse"} ${node.title}`}
+                  onClick={() => onToggle(node.folder!)}
+                >
+                  <Chevron />
+                </button>
+                <NavLink
+                  to={`/${node.path}`}
+                  end
+                  onClick={() => {
+                    // Opening the folder's page unfolds it; clicking it again while there folds it.
+                    const here = decodeURI(location.pathname).replace(/^\/+|\/+$/g, "") === node.path;
+                    onToggle(node.folder!, here ? collapsed.has(node.folder!) : true);
+                  }}
+                >
                   {node.title}
                 </NavLink>
-              ) : (
+              </div>
+            ) : (
+              <button
+                className="nav-folder"
+                aria-expanded={!collapsed.has(node.folder)}
+                onClick={() => onToggle(node.folder!)}
+              >
+                <span className="nav-toggle">
+                  <Chevron />
+                </span>
                 <span>{node.title}</span>
-              )}
-            </div>
+              </button>
+            )}
             {node.children.length > 0 && !collapsed.has(node.folder) && (
               <Tree nodes={node.children} collapsed={collapsed} onToggle={onToggle} nested />
             )}

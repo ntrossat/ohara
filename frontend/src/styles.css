@@ -504,14 +504,24 @@ pre {
 .nav-folder {
   display: flex;
   align-items: center;
+  width: 100%;
   margin-top: 4px;
-  padding-left: 4px;
-  font-size: 14px;
-  font-weight: 600;
+  padding: 0 0 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 600 14px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+button.nav-folder:hover,
+button.nav-folder:hover .nav-toggle {
+  color: var(--clay-hover);
 }
 
 .nav-folder a,
-.nav-folder span {
+.nav-folder > span:last-child {
   flex: 1;
   padding: 7px 8px 7px 0;
   color: var(--ink);
@@ -547,7 +557,8 @@ pre {
   transition: transform 0.2s var(--ease);
 }
 
-.nav-toggle[aria-expanded="false"] svg {
+.nav-toggle[aria-expanded="false"] svg,
+.nav-folder[aria-expanded="false"] svg {
   transform: rotate(-90deg);
 }
 
