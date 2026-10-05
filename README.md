@@ -91,7 +91,9 @@ Connect a coding assistant to the MCP server. For a private docs repository, it 
 claude mcp add --transport http ohara <OHARA_URL>/mcp
 ```
 
-For CI and headless agents, send a read-only GitHub token instead: `--header "Authorization: Bearer <token>"`.
+For CI and headless agents, send a GitHub token instead: `--header "Authorization: Bearer <token>"`.
+
+Assistants read pages and propose changes. A proposal opens a pull request on the docs repository for a human to review. Proposing requires a signed-in user or a token with write access to the repository.
 
 ---
 

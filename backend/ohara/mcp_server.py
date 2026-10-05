@@ -4,12 +4,23 @@ Access mirrors the website: a public docs repository is open to everyone. A priv
 one requires a bearer token: an Ohara token from the OAuth sign-in (see oauth.py), or a
 GitHub token for CI and headless agents. Repository access is re-checked with GitHub
 every 5 minutes.
+
+Agents read pages and propose changes. A proposal becomes a pull request on the docs
+repository, opened by the GitHub App, and a human reviews and merges it. Proposing
+requires a signed-in user who can write to the repository.
 """
 
 import hashlib
 import logging
+import re
+import secrets
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
+
+import httpx
+from mcp.server.mcpserver import Context
+from pydantic import BaseModel
 
 from mcp.server.auth.routes import create_auth_routes, create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
@@ -17,7 +28,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from ohara import config, docs, github, oauth, sessions, store
+from ohara import config, db, docs, github, oauth, sessions, store
 from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
@@ -26,7 +37,8 @@ server = MCPServer(
     "Ohara",
     instructions=(
         "Ohara holds the enterprise documentation and engineering guidelines. "
-        "Treat it as the source of truth: search or list pages, then read the ones relevant to the task."
+        "Treat it as the source of truth: search or list pages, then read the ones relevant to the task. "
+        "When the documentation is wrong or missing something, propose a change for a human to review."
     ),
 )
 
@@ -58,29 +70,63 @@ def read_page(path: str) -> str:
 
 @server.tool()
 def search(query: str) -> list[dict]:
-    """Find documentation pages whose title or text contains every word of the query."""
-    root = config.docs_dir()
-    words = query.lower().split()
-    if not words or not root.exists():
-        return []
-    results = []
-    for file in sorted(root.rglob("*.md")):
-        rel = file.relative_to(root)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        _, body, title = docs.page_info(file)
-        text = f"{title}\n{body}".lower()
-        if all(word in text for word in words):
-            path = rel.as_posix()[:-3]
-            if rel.name in docs.INDEX_NAMES:
-                path = rel.parent.as_posix().removeprefix(".")
-            body = " ".join(docs.HEADING.sub("", body, count=1).split())
-            at = max(0, body.lower().find(words[0]))
-            snippet = body[max(0, at - 80) : at + 160]
-            results.append({"path": path, "title": title, "snippet": snippet})
-            if len(results) == SEARCH_LIMIT:
-                break
-    return results
+    """Find documentation pages that contain every word of the query, best matches first."""
+    return docs.search(query, SEARCH_LIMIT)
+
+
+class PageChange(BaseModel):
+    path: str
+    markdown: str
+
+
+@server.tool()
+async def propose_change(title: str, description: str, pages: list[PageChange], ctx: Context) -> str:
+    """Propose documentation changes as a pull request for a human to review and merge.
+
+    Each page has a path, from list_pages or a new one such as "team/onboarding", and its full new Markdown.
+    The title and description explain the change to the reviewer. Returns the pull request URL.
+    """
+    caller: Caller | None = ctx.request_context.request.state.caller
+    if not caller:
+        raise ValueError("Sign in required: connect with a GitHub token that can write to the docs repository")
+    settings = store.load()
+    repo = settings["repo"]
+    try:
+        login = caller.login or (await github.get_user(caller.github_token))["login"]
+        can_write = await github.user_can_write(caller.github_token, repo["full_name"], login)
+    except github.Unauthorized:
+        raise ValueError("Sign in again: the GitHub token is no longer valid")
+    if not can_write:
+        raise ValueError("Proposing changes requires write access to the docs repository")
+    files = {file_for(page.path): page.markdown for page in pages}
+    if not files:
+        raise ValueError("No pages to change")
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "change"
+    body = f"{description}\n\n---\nProposed through Ohara by @{login}."
+    try:
+        token = await github.installation_token(settings["app"], settings["installation_id"])
+        return await github.open_pull_request(
+            token, repo["full_name"], repo["default_branch"], f"ohara/{slug}-{secrets.token_hex(3)}", files, title, body
+        )
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code == 403:
+            raise ValueError(
+                "The Ohara GitHub App cannot write to the docs repository. An admin must grant it "
+                "Contents and Pull requests write permissions in the app settings, then accept them on the installation."
+            )
+        raise
+
+
+def file_for(path: str) -> str:
+    """The repository file of a page path: the existing file, or a new Markdown file."""
+    path = path.strip().strip("/").removesuffix(".md")
+    found = docs.read_page(config.docs_dir(), path)
+    if found:
+        return found["file"]
+    parts = path.split("/")
+    if not path or any(not part or part.startswith(".") for part in parts):
+        raise ValueError(f"Invalid page path: {path!r}")
+    return f"{path}.md"
 
 
 _handler = None
@@ -99,9 +145,6 @@ async def run():
     _handler = next(route.endpoint for route in http.routes if route.path == "/mcp")
     async with server.session_manager.run():
         yield
-
-
-checks: dict[str, tuple[bool, float]] = {}
 
 
 def oauth_routes() -> list:
@@ -124,26 +167,31 @@ def oauth_routes() -> list:
         return []
 
 
-async def token_can_read(token: str, settings: dict) -> bool | None:
-    """Whether the token can read the repository, or None when the token is invalid or expired."""
+@dataclass
+class Caller:
+    allowed: bool  # can read the docs repository
+    github_token: str
+    login: str | None = None
+
+
+async def authenticate(token: str, settings: dict) -> Caller | None:
+    """Who sends this bearer token, or None when the token is invalid or expired."""
     repo = settings["repo"]["full_name"]
     if token.startswith(oauth.PREFIX):
         access = await oauth.provider.load_access_token(token)
         if not access or access.resource and access.resource.rstrip("/") != oauth.resource_url():
             return None
         session = await sessions.current(access.session, settings["app"], repo)
-        return session.allowed if session else None
+        return Caller(session.allowed, session.token, session.login) if session else None
     key = hashlib.sha256(f"{repo}:{token}".encode()).hexdigest()
-    allowed, checked_at = checks.get(key, (False, 0.0))
-    if time.time() - checked_at < CHECK_INTERVAL:
-        return allowed
-    try:
-        allowed = await github.user_can_read(token, repo)
-    except github.Unauthorized:
-        checks.pop(key, None)
-        return None
-    checks[key] = (allowed, time.time())
-    return allowed
+    checked = db.get("check", key)
+    if checked is None:
+        try:
+            checked = await github.user_can_read(token, repo)
+        except github.Unauthorized:
+            return None
+        db.put("check", key, checked, time.time() + CHECK_INTERVAL)
+    return Caller(checked, token)
 
 
 class App:
@@ -157,16 +205,15 @@ async def guarded(scope, receive, send) -> None:
     settings = store.load()
     if not store.configured(settings):
         return await JSONResponse({"detail": "Ohara is not configured"}, 503)(scope, receive, send)
-    repo = settings["repo"]
-    if repo["private"]:
-        header = dict(scope["headers"]).get(b"authorization", b"").decode()
-        token = header[7:].strip() if header[:7].lower() == "bearer " else ""
-        allowed = await token_can_read(token, settings) if token else None
-        if not allowed:
-            status, detail = (403, "No access to the documentation repository") if allowed is False else (401, "Sign in required")
-            metadata = f"{config.base_url()}/.well-known/oauth-protected-resource/mcp"
-            headers = {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'} if status == 401 else None
-            return await JSONResponse({"detail": detail}, status, headers=headers)(scope, receive, send)
+    header = dict(scope["headers"]).get(b"authorization", b"").decode()
+    token = header[7:].strip() if header[:7].lower() == "bearer " else ""
+    caller = await authenticate(token, settings) if token else None
+    if (token and not caller) or (settings["repo"]["private"] and not (caller and caller.allowed)):
+        status, detail = (403, "No access to the documentation repository") if caller else (401, "Sign in required")
+        metadata = f"{config.base_url()}/.well-known/oauth-protected-resource/mcp"
+        headers = {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'} if status == 401 else None
+        return await JSONResponse({"detail": detail}, status, headers=headers)(scope, receive, send)
+    scope["state"] = {**scope.get("state", {}), "caller": caller}  # a copy, so requests never share it
     await _handler(scope, receive, send)
 
 

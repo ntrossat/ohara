@@ -7,7 +7,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
-from ohara import sessions, store
+from ohara import docs, store
 
 REPO = "acme/handbook"
 URL = "https://docs.example.com"
@@ -18,8 +18,6 @@ os.environ["OHARA_URL"] = URL  # before any test imports ohara.main, which build
 def data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("OHARA_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("OHARA_URL", URL)
-    sessions.sessions.clear()
-    monkeypatch.setattr(sessions, "_loaded", False)
     return tmp_path
 
 
@@ -52,6 +50,9 @@ def app_credentials(pem):
 
 @pytest.fixture
 def configure(app_credentials, data_dir):
+    def index_docs():
+        docs.index(data_dir / "docs")
+
     def _configure(private=True):
         store.save(
             {
@@ -60,10 +61,11 @@ def configure(app_credentials, data_dir):
                 "repo": {"full_name": REPO, "private": private, "default_branch": "main"},
             }
         )
-        docs = data_dir / "docs"
-        docs.mkdir(exist_ok=True)
-        (docs / "README.md").write_text("# Home")
-        (docs / "guide.md").write_text("# Guide")
+        root = data_dir / "docs"
+        root.mkdir(exist_ok=True)
+        (root / "README.md").write_text("# Home")
+        (root / "guide.md").write_text("# Guide")
+        index_docs()
 
     return _configure
 

@@ -17,12 +17,10 @@ def sign_in(token="ghu_1", refresh="ghr_1", expires_in=28800):
 
 
 @respx.mock
-def test_sessions_survive_a_restart(client, configure, monkeypatch):
+def test_sessions_survive_a_restart(client, configure):
     configure(private=True)
     respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
     client.cookies.set("ohara_session", sign_in())
-    sessions.sessions.clear()
-    monkeypatch.setattr(sessions, "_loaded", False)
     assert client.get("/api/status").json()["user"]["login"] == "ada"
 
 
@@ -68,7 +66,9 @@ def test_access_is_cached_for_five_minutes_then_rechecked(client, configure):
     assert route.call_count == 1
 
     route.mock(return_value=httpx.Response(404))
-    sessions.sessions[sid].checked_at = time.time() - sessions.CHECK_INTERVAL - 1
+    session = sessions.get(sid)
+    session.checked_at = time.time() - sessions.CHECK_INTERVAL - 1
+    sessions.save(sid, session)
     assert client.get("/api/nav").status_code == 403
     assert route.call_count == 2
 
@@ -96,7 +96,7 @@ def test_revoked_token_ends_the_session(client, configure):
     sid = sign_in()
     client.cookies.set("ohara_session", sid)
     assert client.get("/api/nav").status_code == 401
-    assert sid not in sessions.sessions
+    assert not sessions.exists(sid)
 
 
 @respx.mock
@@ -112,7 +112,7 @@ def test_sign_in_flow_creates_session_and_returns_to_page(client, configure):
     respx.get("https://api.github.com/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
     done = client.get("/api/auth/callback", params={"code": "c", "state": state})
     assert done.headers["location"] == "/guide"
-    assert done.cookies.get("ohara_session") in sessions.sessions
+    assert sessions.exists(done.cookies.get("ohara_session"))
 
 
 def test_sign_in_rejects_wrong_state(client, configure):

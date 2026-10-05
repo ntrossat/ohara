@@ -1,4 +1,5 @@
 import base64
+import json
 import hashlib
 from urllib.parse import parse_qs, urlparse
 
@@ -7,7 +8,7 @@ import pytest
 import respx
 from fastapi.testclient import TestClient
 
-from ohara import main, mcp_server, oauth, sessions
+from ohara import docs, main, oauth, sessions
 from tests.conftest import REPO
 
 REPO_URL = f"https://api.github.com/repos/{REPO}"
@@ -20,7 +21,6 @@ def mcp(monkeypatch):
         pass
 
     monkeypatch.setattr(main, "safe_sync", no_sync)
-    mcp_server.checks.clear()
     with TestClient(main.app, base_url="https://docs.example.com", follow_redirects=False) as client:
         yield client
 
@@ -53,6 +53,7 @@ def test_lists_pages_with_their_folders(mcp, configure, data_dir):
 def test_search_matches_every_word(mcp, configure, data_dir):
     configure(private=False)
     (data_dir / "docs" / "deploy.md").write_text("# Deploy\n\nShip with blue green releases.")
+    docs.index(data_dir / "docs")
     found = result(call(mcp, "search", query="green DEPLOY"))["structuredContent"]["result"]
     assert found == [{"path": "deploy", "title": "Deploy", "snippet": "Ship with blue green releases."}]
     assert result(call(mcp, "search", query="red"))["structuredContent"]["result"] == []
@@ -215,3 +216,90 @@ def test_client_registrations_are_capped(mcp, configure, monkeypatch):
     params = {"response_type": "code", "redirect_uri": REDIRECT, "code_challenge": CHALLENGE, "code_challenge_method": "S256"}
     assert mcp.get("/authorize", params=params | {"client_id": ids[0]}).status_code == 400
     assert mcp.get("/authorize", params=params | {"client_id": ids[2]}).status_code == 302
+
+
+def test_search_ranks_title_matches_first_and_accepts_any_text(mcp, configure, data_dir):
+    configure(private=False)
+    (data_dir / "docs" / "testing.md").write_text("# Testing\n\nRun the suite before you deploy.")
+    (data_dir / "docs" / "deploy.md").write_text("# Deploy\n\nDeploys go out after tests pass.")
+    docs.index(data_dir / "docs")
+    found = result(call(mcp, "search", query="deploy"))["structuredContent"]["result"]
+    assert [page["path"] for page in found] == ["deploy", "testing"]
+    assert result(call(mcp, "search", query='"blue-green" OR * :'))["structuredContent"]["result"] == []
+
+
+# Change proposals
+
+API = "https://api.github.com"
+PROPOSAL = {
+    "title": "Document the deploy freeze",
+    "description": "Deploys stop on Fridays.",
+    "pages": [{"path": "guide", "markdown": "# Guide\n\nNo deploys on Fridays."}, {"path": "team/oncall", "markdown": "# On call"}],
+}
+
+
+def mock_proposal(push=True):
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={"permissions": {"push": push}}))
+    respx.get(f"{API}/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
+    respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
+    respx.get(f"{REPO_URL}/git/ref/heads/main").mock(return_value=httpx.Response(200, json={"object": {"sha": "base-sha"}}))
+    ref = respx.post(f"{REPO_URL}/git/refs").mock(return_value=httpx.Response(201, json={}))
+    respx.get(f"{REPO_URL}/contents/guide.md").mock(return_value=httpx.Response(200, json={"sha": "guide-sha"}))
+    respx.get(f"{REPO_URL}/contents/team/oncall.md").mock(return_value=httpx.Response(404))
+    put_guide = respx.put(f"{REPO_URL}/contents/guide.md").mock(return_value=httpx.Response(200, json={}))
+    put_new = respx.put(f"{REPO_URL}/contents/team/oncall.md").mock(return_value=httpx.Response(201, json={}))
+    pull = respx.post(f"{REPO_URL}/pulls").mock(return_value=httpx.Response(201, json={"html_url": "https://github.com/acme/handbook/pull/7"}))
+    return ref, put_guide, put_new, pull
+
+
+@respx.mock
+def test_proposal_opens_a_pull_request_from_the_app(mcp, configure):
+    configure(private=False)
+    ref, put_guide, put_new, pull = mock_proposal()
+    answer = result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))
+    assert answer["structuredContent"]["result"] == "https://github.com/acme/handbook/pull/7"
+
+    branch = json.loads(ref.calls.last.request.content)
+    assert branch["ref"].startswith("refs/heads/ohara/document-the-deploy-freeze-") and branch["sha"] == "base-sha"
+    assert ref.calls.last.request.headers["Authorization"] == "Bearer ghs_app"  # the app opens it, so the user can approve
+    guide = json.loads(put_guide.calls.last.request.content)
+    assert base64.b64decode(guide["content"]).decode() == "# Guide\n\nNo deploys on Fridays."
+    assert guide["sha"] == "guide-sha"
+    assert "sha" not in json.loads(put_new.calls.last.request.content)
+    opened = json.loads(pull.calls.last.request.content)
+    assert opened["base"] == "main" and opened["head"] == branch["ref"].removeprefix("refs/heads/")
+    assert opened["body"] == "Deploys stop on Fridays.\n\n---\nProposed through Ohara by @ada."
+
+
+def test_proposal_requires_a_signed_in_caller(mcp, configure):
+    configure(private=False)
+    assert result(call(mcp, "propose_change", **PROPOSAL))["isError"] is True
+
+
+@respx.mock
+def test_proposal_requires_write_access(mcp, configure):
+    configure(private=False)
+    _, _, _, pull = mock_proposal(push=False)
+    assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["isError"] is True
+    assert not pull.called
+
+
+@respx.mock
+def test_proposal_rejects_paths_outside_the_docs(mcp, configure):
+    configure(private=False)
+    _, _, _, pull = mock_proposal()
+    for path in ("../secrets", "team/../../x", ".github/workflows/deploy"):
+        proposal = PROPOSAL | {"pages": [{"path": path, "markdown": "x"}]}
+        assert result(call(mcp, "propose_change", token="ghp_1", **proposal))["isError"] is True, path
+    assert not pull.called
+
+
+@respx.mock
+def test_proposal_checks_collaborator_permission_when_the_repository_omits_it(mcp, configure):
+    configure(private=False)
+    mock_proposal()
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    permission = respx.get(f"{REPO_URL}/collaborators/ada/permission").mock(return_value=httpx.Response(200, json={"permission": "read"}))
+    assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["isError"] is True
+    permission.mock(return_value=httpx.Response(200, json={"permission": "write"}))
+    assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")

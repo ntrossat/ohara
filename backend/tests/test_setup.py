@@ -3,7 +3,7 @@ import json
 import httpx
 import respx
 
-from ohara import store
+from ohara import sessions, store
 from tests.conftest import REPO, tarball
 
 
@@ -15,7 +15,7 @@ def test_manifest_points_github_back_to_this_instance(client):
     assert manifest["redirect_url"] == "https://docs.example.com/api/setup/callback"
     assert manifest["callback_urls"] == ["https://docs.example.com/api/auth/callback"]
     assert manifest["hook_attributes"]["url"] == "https://docs.example.com/api/github/webhook"
-    assert manifest["default_permissions"] == {"contents": "read", "metadata": "read"}
+    assert manifest["default_permissions"] == {"contents": "write", "pull_requests": "write", "metadata": "read"}
     assert manifest["public"] is False
     assert manifest["name"] == "Ohara docs.example.com"
 
@@ -99,3 +99,13 @@ def test_local_instances_get_no_webhook():
     assert "hook_attributes" not in github.manifest("http://192.168.1.20:8000")
     assert "hook_attributes" not in github.manifest("http://ohara:8000")
     assert github.manifest("https://docs.example.com")["default_events"] == ["push", "repository"]
+
+
+def test_settings_from_json_files_are_imported(client, data_dir, app_credentials):
+    repo = {"full_name": "acme/handbook", "private": True, "default_branch": "main"}
+    (data_dir / "settings.json").write_text(json.dumps({"app": app_credentials, "installation_id": 42, "repo": repo}))
+    (data_dir / "sessions.json").write_text(json.dumps({"sid-1": {"login": "ada", "avatar": "", "token": "ghu_1", "refresh": None, "expires_at": None}}))
+    assert store.load()["repo"] == repo
+    assert sessions.get("sid-1").login == "ada"
+    assert not (data_dir / "settings.json").exists()
+    assert (data_dir / "settings.json.imported").exists()

@@ -2,7 +2,7 @@
 
 The folder tree is the navigation. A page's title comes from front matter
 `title`, then its first `# ` heading, then its file name. Front matter
-`order` sorts pages before alphabetical order.
+`order` sorts pages before alphabetical order. Each snapshot is indexed for full-text search.
 """
 
 import io
@@ -12,6 +12,8 @@ import tarfile
 from pathlib import Path
 
 import yaml
+
+from ohara import db
 
 INDEX_NAMES = ("index.md", "README.md")
 FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
@@ -118,3 +120,39 @@ def extract(tarball: bytes, root: Path) -> None:
         root.rename(old)
     staging.rename(root)
     shutil.rmtree(old, ignore_errors=True)
+
+
+def page_path(rel: Path) -> str:
+    """The page path of a Markdown file: no extension, and a folder for its index page."""
+    if rel.name in INDEX_NAMES:
+        return rel.parent.as_posix().removeprefix(".")
+    return rel.as_posix()[:-3]
+
+
+def index(root: Path) -> None:
+    """Replace the search index with the pages of the snapshot at `root`."""
+    rows = []
+    for file in sorted(root.rglob("*.md")) if root.exists() else []:
+        rel = file.relative_to(root)
+        if any(part.startswith(".") for part in rel.parts):
+            continue
+        _, body, title = page_info(file)
+        rows.append((page_path(rel), title, " ".join(HEADING.sub("", body, count=1).split())))
+    with db.connect() as conn:
+        conn.execute("DELETE FROM pages")
+        conn.executemany("INSERT INTO pages (path, title, body) VALUES (?, ?, ?)", rows)
+
+
+def search(query: str, limit: int) -> list[dict]:
+    """Pages containing every word of the query, best matches first. Titles weigh more than text."""
+    words = query.split()
+    if not words:
+        return []
+    match = " ".join('"' + word.replace('"', '""') + '"' for word in words)
+    with db.connect() as conn:
+        rows = conn.execute(
+            "SELECT path, title, snippet(pages, 2, '', '', '…', 32) FROM pages"
+            " WHERE pages MATCH ? ORDER BY bm25(pages, 0, 10, 1) LIMIT ?",
+            (match, limit),
+        ).fetchall()
+    return [{"path": path, "title": title, "snippet": snippet} for path, title, snippet in rows]

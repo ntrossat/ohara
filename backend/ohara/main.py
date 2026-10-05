@@ -32,6 +32,7 @@ async def sync() -> None:
         store.update(repo=repo)
         data = await github.tarball(token, repo["full_name"], repo["default_branch"])
         await asyncio.to_thread(docs.extract, data, config.docs_dir())
+        await asyncio.to_thread(docs.index, config.docs_dir())
         log.info("synced %s@%s", repo["full_name"], repo["default_branch"])
 
 
@@ -45,6 +46,7 @@ async def safe_sync() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     if store.configured():
+        await asyncio.to_thread(docs.index, config.docs_dir())  # search works even if GitHub is unreachable
         asyncio.create_task(safe_sync())
     async with mcp_server.run():
         yield

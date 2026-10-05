@@ -1,10 +1,12 @@
-"""GitHub App calls: manifest registration, installation access, user sign-in, and webhooks."""
+"""GitHub App calls: manifest registration, installation access, change proposals, user sign-in, and webhooks."""
 
+import base64
 import hashlib
 import hmac
 import ipaddress
 import secrets
 import time
+from urllib.parse import quote
 
 import httpx
 import jwt
@@ -52,7 +54,7 @@ def manifest(base_url: str) -> dict:
         "redirect_url": f"{base_url}/api/setup/callback",
         "callback_urls": [auth_callback_url(base_url)],
         "setup_url": f"{base_url}/api/setup/installed",
-        "default_permissions": {"contents": "read", "metadata": "read"},
+        "default_permissions": {"contents": "write", "pull_requests": "write", "metadata": "read"},
     }
     if is_public(base_url):
         # Without a webhook (local runs), docs refresh when Ohara restarts.
@@ -131,6 +133,30 @@ async def tarball(token: str, full_name: str, ref: str) -> bytes:
         return r.content
 
 
+# Change proposals
+
+
+async def open_pull_request(token: str, full_name: str, base: str, branch: str, files: dict[str, str], title: str, body: str) -> str:
+    """Commit `files` (repository path to text) on a new branch and open a pull request. Returns its URL."""
+    repo = f"{API}/repos/{full_name}"
+    async with client(token) as c:
+        r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
+        r.raise_for_status()
+        r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": r.json()["object"]["sha"]})
+        r.raise_for_status()
+        for path, text in files.items():
+            url = f"{repo}/contents/{quote(path)}"
+            current = await c.get(url, params={"ref": branch})
+            content = {"message": title, "branch": branch, "content": base64.b64encode(text.encode()).decode()}
+            if current.status_code == 200:
+                content["sha"] = current.json()["sha"]
+            r = await c.put(url, json=content)
+            r.raise_for_status()
+        r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base})
+        r.raise_for_status()
+        return r.json()["html_url"]
+
+
 # User sign-in
 
 
@@ -168,6 +194,19 @@ async def get_user(token: str) -> dict:
             raise Unauthorized()
         r.raise_for_status()
         return r.json()
+
+
+async def user_can_write(token: str, full_name: str, login: str) -> bool:
+    async with client(token) as c:
+        r = await c.get(f"{API}/repos/{full_name}")
+        if r.status_code == 401:
+            raise Unauthorized()
+        if not r.is_success:
+            return False
+        if "permissions" in r.json():
+            return bool(r.json()["permissions"].get("push"))
+        r = await c.get(f"{API}/repos/{full_name}/collaborators/{quote(login)}/permission")
+    return r.is_success and r.json().get("permission") in ("admin", "maintain", "write")
 
 
 async def user_can_read(token: str, full_name: str) -> bool:
