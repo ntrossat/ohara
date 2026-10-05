@@ -16,7 +16,7 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 
 ## Layout
 
-- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks (sessions are saved in the data volume so they survive restarts), `store.py` the settings file in the data volume.
+- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks (sessions are saved in the data volume so they survive restarts), `store.py` the settings file in the data volume, `mcp_server.py` the MCP server at `/mcp` (tools: `list_pages`, `read_page`, `search`), `oauth.py` the OAuth sign-in for MCP clients.
 - `frontend/src/`: React app. `Setup.tsx` is the setup page, `Gate.tsx` the sign-in screen, `Docs.tsx` the docs reader, `styles.css` the design tokens and styles. The UI follows the brand guidelines, style guide, and UI kit in the `design/` folder of the project's docs repository.
 - The Docker image builds the frontend and serves it from FastAPI. All state lives in the `/data` volume.
 
@@ -41,10 +41,10 @@ Ohara is an open-source enterprise documentation manager. AI keeps documentation
 - Backend: Python with FastAPI.
 - Deployment: Docker Compose, so anyone can self-host on any platform. The domain is configurable.
 - GitHub integration: one GitHub App, created through the manifest flow from Ohara's setup page, then installed on the docs repository. It handles sign-in, read access to the docs repository, and merge events that trigger rebuilds.
-- Access checks: for a private docs repository, the backend re-checks each user's repository access with GitHub every 5 minutes. A user whose access is removed loses the website within 5 minutes.
+- Access checks: for a private docs repository, the backend re-checks each user's repository access with GitHub every 5 minutes. A user whose access is removed loses the website within 5 minutes. The MCP server applies the same rule. MCP clients sign in through OAuth: Ohara is the authorization server, GitHub sign-in proves the user, and Ohara issues its own short-lived `oha_` tokens while the GitHub token stays on the server. CI and headless agents can send a GitHub token as `Authorization: Bearer` instead.
 - Docs repository format: plain Markdown files with no config file. The folder tree becomes the site menu, and each page's first heading is its title. Optional front matter sets the order.
 - Configuration: the domain is the only environment variable in Docker Compose. On first launch, a setup page creates the GitHub App, and the admin picks the docs repository when installing it. Settings are saved in a Docker volume.
-- First version: the setup page, GitHub sign-in with access that mirrors the docs repository, docs rendering, and a rebuild on each merge. The MCP server and AI chat come later.
+- First version: the setup page, GitHub sign-in with access that mirrors the docs repository, docs rendering, a rebuild on each merge, and a read-only MCP server. The AI chat comes later.
 
 ## Open source
 

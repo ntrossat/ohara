@@ -65,6 +65,11 @@ def create(tokens: dict, user: dict) -> str:
     return sid
 
 
+def exists(sid: str) -> bool:
+    _load()
+    return sid in sessions
+
+
 def drop(sid: str | None) -> None:
     _load()
     if sessions.pop(sid, None):

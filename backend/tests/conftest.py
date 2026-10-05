@@ -1,4 +1,5 @@
 import io
+import os
 import tarfile
 
 import pytest
@@ -9,12 +10,14 @@ from fastapi.testclient import TestClient
 from ohara import sessions, store
 
 REPO = "acme/handbook"
+URL = "https://docs.example.com"
+os.environ["OHARA_URL"] = URL  # before any test imports ohara.main, which builds the OAuth routes from it
 
 
 @pytest.fixture(autouse=True)
 def data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("OHARA_DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("OHARA_URL", "https://docs.example.com")
+    monkeypatch.setenv("OHARA_URL", URL)
     sessions.sessions.clear()
     monkeypatch.setattr(sessions, "_loaded", False)
     return tmp_path

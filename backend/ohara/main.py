@@ -11,7 +11,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from ohara import config, docs, github, sessions, store
+from ohara import config, docs, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
@@ -46,7 +46,8 @@ async def safe_sync() -> None:
 async def lifespan(_: FastAPI):
     if store.configured():
         asyncio.create_task(safe_sync())
-    yield
+    async with mcp_server.run():
+        yield
 
 
 app = FastAPI(title="Ohara", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -156,10 +157,11 @@ def safe_next(path: str) -> str:
 
 
 @app.get("/api/auth/login")
-def login(next: str = "/", settings: dict = Depends(require_configured)):
+def login(next: str = "/", mcp: str = "", settings: dict = Depends(require_configured)):
+    """`mcp` carries a pending MCP client authorization, finished by the callback instead of a website session."""
     state = secrets.token_urlsafe(24)
     response = RedirectResponse(github.authorize_url(settings["app"], github.auth_callback_url(config.base_url()), state))
-    set_cookie(response, STATE_COOKIE, json.dumps({"state": state, "next": safe_next(next)}), max_age=600)
+    set_cookie(response, STATE_COOKIE, json.dumps({"state": state, "next": safe_next(next), "mcp": mcp}), max_age=600)
     return response
 
 
@@ -179,8 +181,16 @@ async def auth_callback(request: Request, code: str, state: str):
     except github.Unauthorized:
         raise HTTPException(400, "GitHub sign-in failed")
     sid = sessions.create(tokens, user)
-    response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
-    set_cookie(response, SESSION_COOKIE, sid, max_age=30 * 24 * 3600)
+    if saved.get("mcp"):
+        session = await sessions.current(sid, app_credentials, settings["repo"]["full_name"])
+        redirect = oauth.complete(saved["mcp"], sid, can_read(settings, session))
+        if not redirect:
+            sessions.drop(sid)
+            raise HTTPException(400, "Authorization request expired, connect again from your coding assistant")
+        response = RedirectResponse(redirect, 303)
+    else:
+        response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
+        set_cookie(response, SESSION_COOKIE, sid, max_age=30 * 24 * 3600)
     response.delete_cookie(STATE_COOKIE)
     return response
 
@@ -244,6 +254,13 @@ async def webhook(request: Request, background: BackgroundTasks):
         background.add_task(safe_sync)
         return {"synced": True}
     return {"synced": False}
+
+
+# MCP server
+
+
+app.router.add_route("/mcp", mcp_server.app, methods=["GET", "POST", "DELETE"], include_in_schema=False)
+app.router.routes.extend(mcp_server.oauth_routes())
 
 
 # React app

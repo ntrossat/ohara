@@ -85,6 +85,14 @@ Every piece of documentation is updated by AI and approved by a human.
 
 Your docs repository holds plain Markdown files. Folders become the menu, and each page's first heading is its title.
 
+Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
+
+```sh
+claude mcp add --transport http ohara <OHARA_URL>/mcp
+```
+
+For CI and headless agents, send a read-only GitHub token instead: `--header "Authorization: Bearer <token>"`.
+
 ---
 
 ## Contributing
