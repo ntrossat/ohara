@@ -16,6 +16,16 @@ def sign_in(token="ghu_1", refresh="ghr_1", expires_in=28800):
     )
 
 
+@respx.mock
+def test_sessions_survive_a_restart(client, configure, monkeypatch):
+    configure(private=True)
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    client.cookies.set("ohara_session", sign_in())
+    sessions.sessions.clear()
+    monkeypatch.setattr(sessions, "_loaded", False)
+    assert client.get("/api/status").json()["user"]["login"] == "ada"
+
+
 def test_public_repository_is_open_without_sign_in(client, configure):
     configure(private=False)
     assert client.get("/api/page", params={"path": "guide"}).json()["title"] == "Guide"

@@ -16,7 +16,7 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 
 ## Layout
 
-- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the settings file in the data volume.
+- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks (sessions are saved in the data volume so they survive restarts), `store.py` the settings file in the data volume.
 - `frontend/src/`: React app. `Setup.tsx` is the setup page, `Gate.tsx` the sign-in screen, `Docs.tsx` the docs reader, `styles.css` the design tokens and styles. The UI follows the brand guidelines, style guide, and UI kit in the `design/` folder of the project's docs repository.
 - The Docker image builds the frontend and serves it from FastAPI. All state lives in the `/data` volume.
 

@@ -1,10 +1,13 @@
-"""Signed-in users. A user's repository access is re-checked with GitHub every 5 minutes."""
+"""Signed-in users, saved in the data volume so they survive restarts.
+A user's repository access is re-checked with GitHub every 5 minutes."""
 
+import json
 import secrets
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
-from ohara import github
+from ohara import github, store
+from ohara.config import data_dir
 
 CHECK_INTERVAL = 300
 
@@ -21,6 +24,27 @@ class Session:
 
 
 sessions: dict[str, Session] = {}
+_loaded = False
+
+
+def _path():
+    return data_dir() / "sessions.json"
+
+
+def _load() -> None:
+    global _loaded
+    if _loaded:
+        return
+    _loaded = True
+    try:
+        saved = json.loads(_path().read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    sessions.update({sid: Session(**values) for sid, values in saved.items()})
+
+
+def _save() -> None:
+    store.write_private(_path(), {sid: asdict(session) for sid, session in sessions.items()})
 
 
 def _expires_at(tokens: dict) -> float | None:
@@ -28,6 +52,7 @@ def _expires_at(tokens: dict) -> float | None:
 
 
 def create(tokens: dict, user: dict) -> str:
+    _load()
     sid = secrets.token_urlsafe(32)
     sessions[sid] = Session(
         login=user["login"],
@@ -36,11 +61,14 @@ def create(tokens: dict, user: dict) -> str:
         refresh=tokens.get("refresh_token"),
         expires_at=_expires_at(tokens),
     )
+    _save()
     return sid
 
 
 def drop(sid: str | None) -> None:
-    sessions.pop(sid, None)
+    _load()
+    if sessions.pop(sid, None):
+        _save()
 
 
 async def _refresh(app: dict, session: Session) -> bool:
@@ -53,11 +81,13 @@ async def _refresh(app: dict, session: Session) -> bool:
     session.token = tokens["access_token"]
     session.refresh = tokens.get("refresh_token", session.refresh)
     session.expires_at = _expires_at(tokens)
+    _save()
     return True
 
 
 async def current(sid: str | None, app: dict, repo: str) -> Session | None:
     """Return the session with an up-to-date `allowed` flag, or None when the user must sign in again."""
+    _load()
     session = sessions.get(sid) if sid else None
     if not session:
         return None

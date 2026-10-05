@@ -16,6 +16,7 @@ def data_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("OHARA_DATA_DIR", str(tmp_path))
     monkeypatch.setenv("OHARA_URL", "https://docs.example.com")
     sessions.sessions.clear()
+    monkeypatch.setattr(sessions, "_loaded", False)
     return tmp_path
 
 
