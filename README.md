@@ -36,7 +36,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ### Coding assistant integration
 - Coding assistants access enterprise guidelines through MCP
-- Assistants update technical documentation 
+- Assistants update technical documentation
 
 ### AI-powered ingestion
 - A Claude agent imports existing documentation from external sources through MCP:
@@ -46,7 +46,7 @@ Every piece of documentation is updated by AI and approved by a human.
   - Google Drive
   - and more
 - Imported content is submitted as pull requests for review
-- Security & Prompt injection review
+- Security and prompt injection review
 
 ### Project onboarding
 - An MCP command configures an existing project to use the main Ohara repository as its documentation and guideline source
@@ -59,17 +59,17 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ---
 
-## Command
-/ohara-init => Configure the active project
-/ohara-ingest => Pull and rewrite existing documentation & guideline into Ohara
-/ohara-review => Review active project against documentation & guideline
+## Commands
+- `/ohara-init`: configure the active project
+- `/ohara-ingest`: pull and rewrite existing documentation and guidelines into Ohara
+- `/ohara-review`: review the active project against the documentation and guidelines
 
 ---
 
 ## Workflow
 - Architects define guidelines
-- Coding assistant uses them and proposes architecture on new feature
-- Architects and Engineers review
+- Coding assistant uses them and proposes an architecture for each new feature
+- Architects and engineers review
 - Coding assistant develops based on the approved plan
 - Coding assistant updates the documentation
 - Engineers review
