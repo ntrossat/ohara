@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ohara import config, db, docs, freshness, github, mcp_server, oauth, sessions, store
+from ohara import codeowners, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
@@ -283,7 +283,8 @@ def file(path: str):
 @app.post("/api/github/webhook")
 async def webhook(request: Request, background: BackgroundTasks):
     """Pushes to the docs repository rebuild the site. Pushes to other repositories the app is
-    installed on flag the pages that cover the changed code."""
+    installed on flag the pages that cover the changed code, and their merged or closed pull requests
+    merge or close the docs pull request of the same branch."""
     settings = store.load()
     body = await request.body()
     secret = (settings.get("app") or {}).get("webhook_secret")
@@ -299,6 +300,10 @@ async def webhook(request: Request, background: BackgroundTasks):
         if event == "push" and payload.get("ref") == f"refs/heads/{source.get('default_branch')}" and payload.get("installation"):
             background.add_task(safe_check_code, payload)
             return {"synced": False, "checked": True}
+        closed = event == "pull_request" and payload.get("action") == "closed" and payload.get("installation")
+        if closed and payload["pull_request"]["base"]["ref"] == source.get("default_branch"):
+            background.add_task(safe_follow_code, payload)
+            return {"synced": False, "followed": True}
         return {"synced": False}
     pushed_default = event == "push" and payload.get("ref") == f"refs/heads/{repo['default_branch']}"
     if pushed_default or event == "repository":
@@ -327,6 +332,45 @@ async def safe_check_code(payload: dict) -> None:
         await check_code(payload)
     except Exception:
         log.exception("code change check failed")
+
+
+async def follow_code(payload: dict) -> None:
+    """When a code pull request is merged, merge the docs pull request of its branch if no page in it has code
+    owners. When it is closed without merging, close that docs pull request."""
+    settings = store.load()
+    docs_repo = settings["repo"]["full_name"]
+    code = payload["pull_request"]
+    branch = mcp_server.code_branch(payload["repository"]["name"], code["head"]["ref"])
+    if not branch:
+        return
+    token = await github.installation_token(settings["app"], settings["installation_id"])
+    pull = await github.find_pull(token, docs_repo, branch)
+    if not pull:
+        return
+    if not code.get("merged"):
+        await github.comment(token, docs_repo, pull["number"], f"Closed: {code['html_url']} was closed without merging.")
+        await github.close_pull(token, docs_repo, pull["number"])
+        return
+    files = await github.pull_files(token, docs_repo, pull["number"])
+    rules = codeowners.load(config.docs_dir())
+    owned = [file for file in files if codeowners.needs_review(rules, file)]
+    if owned:
+        why = "have code owners and need review" if rules is not None else "need review: the docs repository has no CODEOWNERS file"
+        reason = f"{code['html_url']} was merged, but these files {why}: {', '.join(owned)}"
+    else:
+        refused = await github.merge_pull(token, docs_repo, pull["number"], pull["head"]["sha"])
+        if not refused:
+            log.info("merged %s with %s", pull["html_url"], code["html_url"])
+            return
+        reason = f"{code['html_url']} was merged, but this pull request could not merge: {refused}"
+    await github.comment(token, docs_repo, pull["number"], reason)
+
+
+async def safe_follow_code(payload: dict) -> None:
+    try:
+        await follow_code(payload)
+    except Exception:
+        log.exception("docs pull request follow-up failed")
 
 
 # MCP server

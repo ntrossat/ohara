@@ -11,7 +11,7 @@ Ohara is an open-source documentation manager: one central place for all enterpr
 Every piece of documentation is updated by AI and approved by a human.
 
 - AI ingests, writes, and proposes.
-- Humans review, approve, and merge.
+- Humans review, approve, and merge: the docs of a code change merge with it, and guarded folders get their own review.
 - Ohara is the single source of truth.
 
 ---
@@ -22,6 +22,7 @@ Every piece of documentation is updated by AI and approved by a human.
 - All documentation stored in your GitHub repository
 - Every change goes through a validation workflow
 - Full history, review, and traceability
+- Docs merge with the code change that updated them, except folders the team guards for review with `CODEOWNERS`
 - Configurable repository
 
 ### Freshness
@@ -112,7 +113,7 @@ Then run `/ohara:init` in the project to set it up.
 
 For CI and headless agents, send a GitHub token instead: `--header "Authorization: Bearer <token>"`.
 
-Assistants read pages and propose changes. A proposal opens a pull request on the docs repository for a human to review, one per code branch: later proposals from the same branch add to it. Proposing requires a signed-in user or a token with write access to the repository.
+Assistants read pages and propose changes. A proposal from a code branch opens one docs pull request that merges when the code is merged, and a second one for review if it touches folders with code owners. Later proposals from the same branch add to them. Other proposals open a pull request for a human to review. Proposing requires a signed-in user or a token with write access to the repository.
 
 ---
 

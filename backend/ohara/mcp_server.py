@@ -31,7 +31,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from ohara import config, db, docs, freshness, github, oauth, sessions, store
+from ohara import codeowners, config, db, docs, freshness, github, oauth, sessions, store
 from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
@@ -67,6 +67,7 @@ class Page(BaseModel):
     markdown: str
     owner: str | None
     verified: str | None
+    covers: list[str]
     stale: list[str]
 
 
@@ -74,7 +75,8 @@ class Page(BaseModel):
 def read_page(path: str) -> Page:
     """Read a documentation page as Markdown. Use a path from list_pages or search; an empty path is the home page.
 
-    Also returns the page's owner, the date a human last verified it, and why it may be stale.
+    Also returns the page's owner, the date a human last verified it, the code it covers ("owner/repo:pattern"),
+    and why it may be stale. Keep the owner and covers in the front matter when proposing a change to the page.
     Tell the user when a page you rely on is stale.
     """
     root = config.docs_dir()
@@ -119,7 +121,9 @@ async def propose_change(
 
     When the change comes from a code project, pass the project's repository name and its active git branch.
     Ohara then commits on the "project/branch" branch of the docs repository, and adds to its open pull request
-    if there is one, so each code branch gets a single pull request to review. Returns the pull request URL.
+    if there is one. Pages without code owners in the docs repository's CODEOWNERS merge automatically when the
+    code branch is merged; pages with code owners go to a second pull request for review. Returns the pull
+    request URLs: put them in the code pull request's description so its reviewers see the docs changes.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
@@ -137,12 +141,25 @@ async def propose_change(
     files = {file_for(page.path): freshness.stamp_verified(page.markdown, today) for page in pages}
     if not files:
         raise ToolError("No pages to change")
-    body = f"{description}\n\n---\nProposed through Ohara by @{login}."
+    signature = f"Proposed through Ohara by @{login}."
+    code = code_branch(project, branch)
+    if code:
+        rules = codeowners.load(config.docs_dir())
+        review = {path: text for path, text in files.items() if codeowners.needs_review(rules, path)}
+        auto = {path: text for path, text in files.items() if path not in review}
+        merges = f"Merges automatically when the `{branch.strip()}` branch of {project.strip()} is merged."
+        groups = [(code, auto, f"{merges} {signature}", " (merges with the code branch)"), (f"{code}-review", review, signature, "")]
+    else:
+        groups = [(branch_for(title), files, signature, "")]
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
-        return await github.open_pull_request(
-            token, repo["full_name"], repo["default_branch"], branch_for(title, project, branch), files, title, body
-        )
+        urls = []
+        for docs_branch, group, footer, note in groups:
+            if group:
+                body = f"{description}\n\n---\n{footer}"
+                url = await github.open_pull_request(token, repo["full_name"], repo["default_branch"], docs_branch, group, title, body)
+                urls.append(url + note)
+        return "\n".join(urls)
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 403:
             raise ToolError(
@@ -152,11 +169,16 @@ async def propose_change(
         raise
 
 
-def branch_for(title: str, project: str, branch: str) -> str:
-    """The docs branch of a proposal: "project/branch" for a code branch, otherwise a new one named after the title."""
+def code_branch(project: str, branch: str) -> str | None:
+    """The docs branch of a code branch, "project/branch", or None when either is missing. The project is the
+    repository name, also when given as "owner/repository"."""
+    project = project.strip().rstrip("/").rsplit("/", 1)[-1]
     parts = [re.sub(r"[^A-Za-z0-9_-]+", "-", part).strip("-") for part in f"{project}/{branch}".split("/")]
-    if project.strip() and branch.strip() and all(parts):
-        return "/".join(parts)
+    return "/".join(parts) if project.strip() and branch.strip() and all(parts) else None
+
+
+def branch_for(title: str) -> str:
+    """The docs branch of a proposal that comes from no code branch: a new one named after the title."""
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "change"
     return f"ohara/{slug}-{secrets.token_hex(3)}"
 
@@ -195,7 +217,8 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
      - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
      - After the change, check it against the guidelines and fix what does not follow them.
      - Then propose updates to every page the change affects in one propose_change, with the project's repository
-       name and active git branch, so each code branch gets a single pull request to review.
+       name and active git branch, so each code branch gets a single pull request to review. Put the docs pull
+       request links in the code pull request's description.
 
 4. In .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
    "mcp__ohara__search", "mcp__ohara__stale_pages". Leave propose_change out, so each proposal is confirmed.

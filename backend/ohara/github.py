@@ -59,7 +59,7 @@ def manifest(base_url: str) -> dict:
     if is_public(base_url):
         # Without a webhook (local runs), docs refresh when Ohara restarts.
         app["hook_attributes"] = {"url": f"{base_url}/api/github/webhook"}
-        app["default_events"] = ["push", "repository"]
+        app["default_events"] = ["push", "pull_request", "repository"]
     return app
 
 
@@ -159,10 +159,8 @@ async def open_pull_request(token: str, full_name: str, base: str, branch: str, 
     branch starts again from `base`, so it holds only this change, and a new pull request is opened.
     """
     repo = f"{API}/repos/{full_name}"
+    pull = await find_pull(token, full_name, branch)
     async with client(token) as c:
-        r = await c.get(f"{repo}/pulls", params={"head": f"{full_name.split('/')[0]}:{branch}", "state": "open"})
-        r.raise_for_status()
-        pull = next(iter(r.json()), None)
         if not pull:
             r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
             r.raise_for_status()
@@ -186,6 +184,52 @@ async def open_pull_request(token: str, full_name: str, base: str, branch: str, 
         r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base})
         r.raise_for_status()
         return r.json()["html_url"]
+
+
+async def find_pull(token: str, full_name: str, branch: str) -> dict | None:
+    """The open pull request of a branch, if any."""
+    async with client(token) as c:
+        r = await c.get(f"{API}/repos/{full_name}/pulls", params={"head": f"{full_name.split('/')[0]}:{branch}", "state": "open"})
+        r.raise_for_status()
+    return next(iter(r.json()), None)
+
+
+async def pull_files(token: str, full_name: str, number: int) -> list[str]:
+    """The files a pull request changes, including the old name of renamed files."""
+    files = set()
+    async with client(token) as c:
+        for page in range(1, 31):  # GitHub lists up to 3,000 files
+            r = await c.get(f"{API}/repos/{full_name}/pulls/{number}/files", params={"per_page": 100, "page": page})
+            r.raise_for_status()
+            for changed in r.json():
+                files.add(changed["filename"])
+                if changed.get("previous_filename"):
+                    files.add(changed["previous_filename"])
+            if len(r.json()) < 100:
+                break
+    return sorted(files)
+
+
+async def merge_pull(token: str, full_name: str, number: int, sha: str) -> str | None:
+    """Squash-merge a pull request at commit `sha`. Returns why GitHub refused, or None once merged."""
+    async with client(token) as c:
+        r = await c.put(f"{API}/repos/{full_name}/pulls/{number}/merge", json={"merge_method": "squash", "sha": sha})
+    if r.status_code in (405, 409, 422):
+        return r.json().get("message") or "GitHub refused the merge"
+    r.raise_for_status()
+    return None
+
+
+async def close_pull(token: str, full_name: str, number: int) -> None:
+    async with client(token) as c:
+        r = await c.patch(f"{API}/repos/{full_name}/pulls/{number}", json={"state": "closed"})
+        r.raise_for_status()
+
+
+async def comment(token: str, full_name: str, number: int, body: str) -> None:
+    async with client(token) as c:
+        r = await c.post(f"{API}/repos/{full_name}/issues/{number}/comments", json={"body": body})
+        r.raise_for_status()
 
 
 # User sign-in

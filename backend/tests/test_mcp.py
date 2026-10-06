@@ -303,9 +303,28 @@ def test_proposal_from_a_code_branch_uses_a_project_branch(mcp, configure):
     find = respx.get(f"{REPO_URL}/pulls").mock(return_value=httpx.Response(200, json=[]))
     answer = result(call(mcp, "propose_change", token="ghp_1", project="api", branch="feature/new billing", **PROPOSAL))
     assert answer["structuredContent"]["result"].endswith("/pull/7")
-    assert find.calls.last.request.url.params["head"] == "acme:api/feature/new-billing"
-    assert json.loads(ref.calls.last.request.content)["ref"] == "refs/heads/api/feature/new-billing"
-    assert json.loads(pull.calls.last.request.content)["head"] == "api/feature/new-billing"
+    # Without a CODEOWNERS file, every page needs review
+    assert find.calls.last.request.url.params["head"] == "acme:api/feature/new-billing-review"
+    assert json.loads(ref.calls.last.request.content)["ref"] == "refs/heads/api/feature/new-billing-review"
+    assert json.loads(pull.calls.last.request.content)["head"] == "api/feature/new-billing-review"
+
+
+@respx.mock
+def test_proposal_from_a_code_branch_splits_pages_by_code_owners(mcp, configure, data_dir):
+    configure(private=False)
+    (data_dir / "docs/.github").mkdir()
+    (data_dir / "docs/.github/CODEOWNERS").write_text("# Guidelines need review\n/team/ @acme/leads\n")
+    ref, put_guide, put_new, pull = mock_proposal()
+    answer = result(call(mcp, "propose_change", token="ghp_1", project="api", branch="billing", **PROPOSAL))
+    assert answer["structuredContent"]["result"].split("\n") == [
+        "https://github.com/acme/handbook/pull/7 (merges with the code branch)",
+        "https://github.com/acme/handbook/pull/7",
+    ]
+    assert json.loads(put_guide.calls.last.request.content)["branch"] == "api/billing"
+    assert json.loads(put_new.calls.last.request.content)["branch"] == "api/billing-review"
+    bodies = [json.loads(call.request.content)["body"] for call in pull.calls]
+    assert "Merges automatically when the `billing` branch of api is merged." in bodies[0]
+    assert "Merges automatically" not in bodies[1]
 
 
 @respx.mock
@@ -318,7 +337,7 @@ def test_proposal_adds_to_the_open_pull_request_of_its_branch(mcp, configure):
     comment = respx.post(f"{REPO_URL}/issues/5/comments").mock(return_value=httpx.Response(201, json={}))
     answer = result(call(mcp, "propose_change", token="ghp_1", project="api", branch="main", **PROPOSAL))
     assert answer["structuredContent"]["result"] == "https://github.com/acme/handbook/pull/5"
-    assert json.loads(put_guide.calls.last.request.content)["branch"] == "api/main"
+    assert json.loads(put_guide.calls.last.request.content)["branch"] == "api/main-review"
     assert "Document the deploy freeze" in json.loads(comment.calls.last.request.content)["body"]
     assert not ref.called and not pull.called
 
@@ -328,7 +347,7 @@ def test_proposal_restarts_a_branch_left_from_a_closed_pull_request(mcp, configu
     configure(private=False)
     ref, _, _, pull = mock_proposal()
     ref.mock(return_value=httpx.Response(422, json={}))
-    reset = respx.patch(f"{REPO_URL}/git/refs/heads/api/main").mock(return_value=httpx.Response(200, json={}))
+    reset = respx.patch(f"{REPO_URL}/git/refs/heads/api/main-review").mock(return_value=httpx.Response(200, json={}))
     assert result(call(mcp, "propose_change", token="ghp_1", project="api", branch="main", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")
     assert json.loads(reset.calls.last.request.content) == {"sha": "base-sha", "force": True}
     assert pull.called

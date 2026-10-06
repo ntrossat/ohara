@@ -98,7 +98,7 @@ def test_local_instances_get_no_webhook():
     assert "default_events" not in github.manifest("http://127.0.0.1:8000")
     assert "hook_attributes" not in github.manifest("http://192.168.1.20:8000")
     assert "hook_attributes" not in github.manifest("http://ohara:8000")
-    assert github.manifest("https://docs.example.com")["default_events"] == ["push", "repository"]
+    assert github.manifest("https://docs.example.com")["default_events"] == ["push", "pull_request", "repository"]
 
 
 def test_settings_from_json_files_are_imported(client, data_dir, app_credentials):

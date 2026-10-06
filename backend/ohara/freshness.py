@@ -51,7 +51,7 @@ def covers(meta: dict) -> list[tuple[str, str]]:
 
 
 def status(root: Path, page: dict) -> dict:
-    """Freshness of a page from docs.read_page: owner, verified date, and why it is stale (empty when fresh)."""
+    """Freshness of a page from docs.read_page: owner, verified date, covered code, and why it is stale (empty when fresh)."""
     meta = page["meta"]
     verified = _date(meta.get("verified")) if meta.get("verified") else None
     reasons = []
@@ -63,7 +63,12 @@ def status(root: Path, page: dict) -> dict:
             files = ", ".join(change["files"][:5]) + (" and more" if len(change["files"]) > 5 else "")
             reasons.append(f"Code changed in {change['repo']} on {change['at']} ({change['compare']}): {files}")
     owner = meta.get("owner")
-    return {"owner": str(owner) if owner else None, "verified": verified.isoformat() if verified else None, "stale": reasons}
+    return {
+        "owner": str(owner) if owner else None,
+        "verified": verified.isoformat() if verified else None,
+        "covers": [f"{repo}:{pattern}" for repo, pattern in covers(meta)],
+        "stale": reasons,
+    }
 
 
 def stale_pages(root: Path) -> list[dict]:

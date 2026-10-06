@@ -40,6 +40,7 @@ def test_fresh_page_reports_owner_and_verified_date(mcp, configure, data_dir):
     page = result(call(mcp, "read_page", path="billing"))["structuredContent"]
     assert page["owner"] == "ada"
     assert page["verified"] == "2026-01-02"
+    assert page["covers"] == ["acme/api:src/billing/*"]
 
 
 def test_page_not_verified_for_long_is_stale(mcp, configure, data_dir):
