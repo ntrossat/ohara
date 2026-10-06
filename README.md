@@ -1,8 +1,40 @@
-# Ohara — One central place for all enterprise knowledge
+# Ohara — One place for all company knowledge, kept up to date by AI
 
 **AI-generated, human-controlled.**
 
-Ohara is an open-source documentation manager: one central place for all enterprise knowledge. It keeps all enterprise documentation and engineering guidelines up to date using AI.
+Ohara is an open-source documentation manager. It gathers your docs and engineering guidelines in one GitHub repository, gives every coding assistant the same guidelines, and updates the docs with each code change, through pull requests a human approves.
+
+![The Ohara docs reader](.github/screenshot.jpg)
+
+---
+
+## Why Ohara
+
+Ohara addresses three key challenges:
+
+1. **Scattered knowledge.** Company knowledge is split across Jira, Confluence, GitHub, Google Drive, and Slack, with no single source of truth.
+2. **Inconsistent coding assistants.** Every developer and every project configures their assistant on their own, so guidelines drift apart, and so does the code.
+3. **Outdated documentation.** Docs fall behind the code because nobody owns the update step.
+
+Ohara's answer:
+
+- **One place for all knowledge.** Ohara imports existing docs from Jira, Confluence, GitHub, and Google Drive into a single GitHub repository. It is the single source of truth, readable by people on a website and by AI through MCP.
+- **Shared guidelines for every developer and every project.** Architects write the guidelines once. `/ohara:init` connects any project's coding assistant to them in one command. Every assistant, in every repository, follows the same rules, and an update reaches everyone right away.
+- **Docs that stay current.** Assistants propose doc updates with each code change, and the docs pull request merges with the code pull request. Stale pages are flagged automatically.
+- **Humans approve every change.** AI writes the docs, and people review them.
+
+All your company knowledge in one place, kept up to date by AI, so every coding assistant follows the same guidelines across every developer and project.
+
+### Compared with other tools
+
+| | Ohara | Wikis (Confluence, Notion) | Docs sites (Docusaurus, MkDocs) |
+|---|---|---|---|
+| Every change reviewed as a pull request | ✓ | | ✓ |
+| Docs merge with the code change that updated them | ✓ | | |
+| Pages flagged when the code they describe changes | ✓ | | |
+| One command connects a project's coding assistant to shared guidelines | ✓ | | |
+| Access mirrors the GitHub repository | ✓ | | |
+| Open source and self-hosted | ✓ | | ✓ |
 
 ---
 
@@ -63,6 +95,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ## Roadmap
 - **AI chat** to ask questions about the documentation
+- **Published releases**: a versioned Docker image on each release, so `docker compose up` runs Ohara without building it
 
 ---
 
