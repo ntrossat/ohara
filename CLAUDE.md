@@ -59,6 +59,7 @@ Ohara is an open-source project. Never commit anything specific to one company, 
 
 ## Conventions
 
+- Never work on `main`. Create a branch before the first change, and merge it into `main` through a pull request.
 - Use Conventional Commits (`docs:`, `chore:`, …).
 - Keep `README.md` focused on principles and features. Implementation details, architecture diagrams, and tech stack tables were removed from it on purpose.
 
