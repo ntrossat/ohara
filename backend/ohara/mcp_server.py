@@ -200,17 +200,18 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
 4. Create .claude/hooks/ohara-check.sh with exactly this content, and make it executable:
 
 #!/bin/sh
-# Ohara: once per new set of changes, check them against the guidelines, then update the docs.
+# Ohara: check each new set of changes against the guidelines and docs, with a one-line reply.
 input=$(cat)
-case "$input" in *'"stop_hook_active": true'* | *'"stop_hook_active":true'*) exit 0 ;; esac
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-changes=$( { git diff HEAD; git ls-files --others --exclude-standard; } 2>/dev/null )
+changes=$( { git diff HEAD; git ls-files --others --exclude-standard | git hash-object --stdin-paths; } 2>/dev/null )
 [ -z "$changes" ] && exit 0
 hash=$(printf '%s' "$changes" | git hash-object --stdin)
 marker="$(git rev-parse --git-dir)/ohara-checked"
-[ "$(cat "$marker" 2>/dev/null)" = "$hash" ] && exit 0
+last=$(cat "$marker" 2>/dev/null)
 echo "$hash" > "$marker"
-echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to every Ohara page these changes affect in one propose_change, with the project and active branch, or say that none are needed."}'
+case "$input" in *'"stop_hook_active": true'* | *'"stop_hook_active":true'*) exit 0 ;; esac
+[ "$last" = "$hash" ] && exit 0
+echo '{"decision": "block", "reason": "Ohara check: check only the changes since the last Ohara check against the guidelines in CLAUDE.md, reusing pages already read, and fix what does not follow them. If they change what an Ohara page describes, propose the updates in one propose_change with the project and active branch. Then reply with a short summary."}'
 
 5. In .claude/settings.json, merge:
    - permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page", "mcp__ohara__search",
