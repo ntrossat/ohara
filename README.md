@@ -86,7 +86,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ## Getting started
 
-1. Set `OHARA_URL` to the address people will use to open Ohara (see `.env.example`).
+1. Set `OHARA_URL` to the address people will use to open Ohara (see `.env.example`). It can include a path, such as `https://acme.com/docs`.
 2. Run `docker compose up -d`.
 3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository.
 

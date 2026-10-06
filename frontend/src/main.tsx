@@ -7,10 +7,11 @@ import "@fontsource-variable/manrope";
 import "@fontsource-variable/jetbrains-mono";
 import "./styles.css";
 import App from "./App";
+import { base } from "./api";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={base || undefined}>
       <App />
     </BrowserRouter>
   </StrictMode>,

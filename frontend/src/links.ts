@@ -1,3 +1,5 @@
+import { base } from "./api";
+
 /** Resolve links written in Markdown (relative to the source file) to site routes and asset URLs. */
 
 const EXTERNAL = /^[a-z][a-z0-9+.-]*:|^\/\//i;
@@ -28,5 +30,5 @@ export function resolveLink(file: string, href: string): Resolved {
     const page = path.replace(/(^|\/)(index|README)\.md$/, "").replace(/\.md$/, "");
     return { kind: "page", href: `/${page}${anchor}` };
   }
-  return { kind: "local", href: `/api/files/${encodeURI(path)}` };
+  return { kind: "local", href: `${base}/api/files/${encodeURI(path)}` };
 }

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router";
-import { get } from "./api";
+import { base, get } from "./api";
 import { GitHubIcon } from "./Gate";
 import Mark from "./Mark";
 
@@ -11,7 +11,8 @@ export default function Setup({ url, installUrl }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [params] = useSearchParams();
-  const urlMismatch = url !== location.origin;
+  const opened = location.origin + base;
+  const urlMismatch = url !== opened;
 
   async function createApp(event: FormEvent) {
     event.preventDefault();
@@ -50,7 +51,7 @@ export default function Setup({ url, installUrl }: Props) {
           </p>
           {urlMismatch && (
             <p className="notice">
-              This instance is set up for <code>{url}</code>, but you opened <code>{location.origin}</code>. GitHub will
+              This instance is set up for <code>{url}</code>, but you opened <code>{opened}</code>. GitHub will
               send you back to {url}. Set <code>OHARA_URL</code> to the address people use, then restart.
             </p>
           )}

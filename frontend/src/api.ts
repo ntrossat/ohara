@@ -12,6 +12,9 @@ export type Status =
 export type NavNode = { title: string; path: string | null; folder?: string; children: NavNode[] };
 export type Page = { title: string; file: string; markdown: string };
 
+/** The path Ohara is served under, such as "/docs", set by the server. Empty at the root of the host. */
+export const base = document.querySelector<HTMLMetaElement>('meta[name="ohara-base"]')?.content ?? "";
+
 export class HttpError extends Error {
   constructor(public status: number) {
     super(`Request failed with status ${status}`);
@@ -19,7 +22,7 @@ export class HttpError extends Error {
 }
 
 export async function get<T>(url: string): Promise<T> {
-  const response = await fetch(url, { credentials: "same-origin" });
+  const response = await fetch(base + url, { credentials: "same-origin" });
   // Access lost (session ended or removed on GitHub): reload to show the sign-in screen.
   if (response.status === 401 || response.status === 403) location.reload();
   if (!response.ok) throw new HttpError(response.status);
@@ -27,10 +30,10 @@ export async function get<T>(url: string): Promise<T> {
 }
 
 export function signInUrl(next = location.pathname + location.hash) {
-  return `/api/auth/login?next=${encodeURIComponent(next)}`;
+  return `${base}/api/auth/login?next=${encodeURIComponent(next)}`;
 }
 
 export async function signOut() {
-  await fetch("/api/auth/logout", { method: "POST" });
-  location.assign("/");
+  await fetch(`${base}/api/auth/logout`, { method: "POST" });
+  location.assign(`${base}/`);
 }

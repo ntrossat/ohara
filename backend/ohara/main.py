@@ -8,7 +8,7 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ohara import config, docs, freshness, github, mcp_server, oauth, sessions, store
@@ -145,17 +145,17 @@ async def setup_installed(installation_id: int, settings: dict = Depends(require
     token = await github.installation_token(settings["app"], installation_id)
     repos = await github.installation_repos(token)
     if len(repos) != 1:
-        return RedirectResponse("/setup?error=one-repository", 303)
+        return RedirectResponse(f"{config.base_path()}/setup?error=one-repository", 303)
     store.update(installation_id=installation_id, repo=github.repo_summary(repos[0]))
     await safe_sync()
-    return RedirectResponse("/", 303)
+    return RedirectResponse(f"{config.base_path()}/", 303)
 
 
 # Sign-in
 
 
 def safe_next(path: str) -> str:
-    return path if path.startswith("/") and not path.startswith("//") else "/"
+    return path if path.startswith("/") and not path.startswith("//") else f"{config.base_path()}/"
 
 
 @app.get("/api/auth/login")
@@ -200,7 +200,7 @@ async def auth_callback(request: Request, code: str, state: str):
 @app.post("/api/auth/logout")
 def logout(request: Request):
     sessions.drop(request.cookies.get(SESSION_COOKIE))
-    response = RedirectResponse("/", 303)
+    response = RedirectResponse(f"{config.base_path()}/", 303)
     response.delete_cookie(SESSION_COOKIE)
     return response
 
@@ -309,4 +309,44 @@ if (static / "index.html").exists():
         candidate = (static / path).resolve()
         if path and candidate.is_relative_to(static.resolve()) and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(static / "index.html")
+        return HTMLResponse(index_html())
+
+
+@functools.cache
+def index_html() -> str:
+    """The React app's page, with its assets and routes moved under the base path."""
+    base = config.base_path()
+    html = (static / "index.html").read_text().replace('="./', f'="{base}/')
+    return html.replace("<head>", f'<head>\n    <meta name="ohara-base" content="{base}" />', 1)
+
+
+class BasePath:
+    """Serve Ohara under the path of OHARA_URL, such as https://acme.com/docs, and send the rest of the host there.
+
+    OAuth discovery stays at the host's root, as clients look for it there (RFC 8414 and RFC 9728).
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        base = config.base_path()
+        if scope["type"] != "http" or not base:
+            return await self.app(scope, receive, send)
+        path = scope["path"]
+        if path == f"{AUTH_METADATA}{base}":
+            path = f"{base}{AUTH_METADATA}"
+        if path.startswith(f"{base}/"):
+            return await self.app({**scope, "path": path, "root_path": base}, receive, send)
+        if path.startswith(f"{RESOURCE_METADATA}{base}/"):
+            return await self.app(scope, receive, send)
+        if scope["method"] in ("GET", "HEAD"):
+            query = scope["query_string"].decode()
+            target = f"{base}/" if path in ("/", base) else f"{base}{path}"
+            return await RedirectResponse(f"{target}?{query}" if query else target, 308)(scope, receive, send)
+        await PlainTextResponse("Not found", 404)(scope, receive, send)
+
+
+AUTH_METADATA = "/.well-known/oauth-authorization-server"
+RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
+app.add_middleware(BasePath)

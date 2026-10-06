@@ -23,9 +23,9 @@ from dataclasses import dataclass
 import httpx
 from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import BaseModel
+from pydantic import AnyHttpUrl, BaseModel
 
-from mcp.server.auth.routes import create_auth_routes, create_protected_resource_routes
+from mcp.server.auth.routes import build_resource_metadata_url, create_auth_routes, create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
@@ -399,7 +399,7 @@ async def guarded(scope, receive, send) -> None:
     caller = await authenticate(token, settings) if token else None
     if (token and not caller) or (settings["repo"]["private"] and not (caller and caller.allowed)):
         status, detail = (403, "No access to the documentation repository") if caller else (401, "Sign in required")
-        metadata = f"{config.base_url()}/.well-known/oauth-protected-resource/mcp"
+        metadata = build_resource_metadata_url(AnyHttpUrl(oauth.resource_url()))
         headers = {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'} if status == 401 else None
         return await JSONResponse({"detail": detail}, status, headers=headers)(scope, receive, send)
     scope["state"] = {**scope.get("state", {}), "caller": caller}  # a copy, so requests never share it
