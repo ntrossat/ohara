@@ -5,18 +5,21 @@ import functools
 import json
 import logging
 import secrets
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
-from ohara import config, docs, freshness, github, mcp_server, oauth, sessions, store
+from ohara import config, db, docs, freshness, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
 SESSION_COOKIE = "ohara_session"
 STATE_COOKIE = "ohara_state"
+CONSENT_COOKIE = "ohara_consent"
 sync_lock = asyncio.Lock()
 
 
@@ -184,16 +187,54 @@ async def auth_callback(request: Request, code: str, state: str):
         raise HTTPException(400, "GitHub sign-in failed")
     sid = sessions.create(tokens, user)
     if saved.get("mcp"):
-        session = await sessions.current(sid, app_credentials, settings["repo"]["full_name"])
-        redirect = oauth.complete(saved["mcp"], sid, can_read(settings, session))
-        if not redirect:
+        if not oauth.describe(saved["mcp"]):
             sessions.drop(sid)
             raise HTTPException(400, "Authorization request expired, connect again from your coding assistant")
-        response = RedirectResponse(redirect, 303)
+        session = await sessions.current(sid, app_credentials, settings["repo"]["full_name"])
+        if not can_read(settings, session):
+            response = RedirectResponse(oauth.complete(saved["mcp"], sid, "No access to the documentation repository"), 303)
+        else:
+            # The user approves the client on the consent page, in this browser only.
+            consent = secrets.token_urlsafe(24)
+            db.put("consent", consent, {"request": saved["mcp"], "session": sid, "login": user["login"]}, time.time() + oauth.PENDING_TTL)
+            response = RedirectResponse(f"{config.base_path()}/oauth/consent", 303)
+            set_cookie(response, CONSENT_COOKIE, consent, max_age=oauth.PENDING_TTL)
     else:
         response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
         set_cookie(response, SESSION_COOKIE, sid, max_age=30 * 24 * 3600)
     response.delete_cookie(STATE_COOKIE)
+    return response
+
+
+def pending_consent(request: Request) -> tuple[str, dict]:
+    consent = request.cookies.get(CONSENT_COOKIE, "")
+    found = consent and db.get("consent", consent)
+    if not found or not oauth.describe(found["request"]):
+        raise HTTPException(404, "Authorization request expired, connect again from your coding assistant")
+    return consent, found
+
+
+@app.get("/api/auth/consent")
+def consent_details(request: Request):
+    _, found = pending_consent(request)
+    return oauth.describe(found["request"]) | {"login": found["login"]}
+
+
+class Answer(BaseModel):
+    approve: bool
+
+
+@app.post("/api/auth/consent")
+def consent_answer(answer: Answer, request: Request):
+    """The consent cookie is SameSite, so only a page on Ohara's own site can approve a client."""
+    consent, found = pending_consent(request)
+    redirect = db.pop("consent", consent) and oauth.complete(
+        found["request"], found["session"], None if answer.approve else "The user denied access"
+    )
+    if not redirect:
+        raise HTTPException(404, "Authorization request expired, connect again from your coding assistant")
+    response = JSONResponse({"redirect": redirect})
+    response.delete_cookie(CONSENT_COOKIE)
     return response
 
 

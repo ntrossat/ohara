@@ -9,4 +9,4 @@ hash=$(printf '%s' "$changes" | git hash-object --stdin)
 marker="$(git rev-parse --git-dir)/ohara-checked"
 [ "$(cat "$marker" 2>/dev/null)" = "$hash" ] && exit 0
 echo "$hash" > "$marker"
-echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to the Ohara pages these changes affect with propose_change, or say that none are needed."}'
+echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to every Ohara page these changes affect in one propose_change, or say that none are needed."}'

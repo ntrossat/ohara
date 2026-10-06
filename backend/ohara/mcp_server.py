@@ -113,7 +113,8 @@ async def propose_change(title: str, description: str, pages: list[PageChange], 
 
     Each page has a path, from list_pages or a new one such as "team/onboarding", and its full new Markdown,
     front matter included. Ohara sets the page's `verified` date, so merging the change verifies the page.
-    The title and description explain the change to the reviewer. Returns the pull request URL.
+    The title and description explain the change to the reviewer. Send every page a change affects in one call,
+    so the reviewer gets a single pull request instead of one per page or commit. Returns the pull request URL.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
@@ -171,7 +172,7 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
 2. In .mcp.json at the project root, add the Ohara server so the whole team gets it:
    {"mcpServers": {"ohara": {"type": "http", "url": "{url}/mcp"}}}
 
-3. In CLAUDE.md (create it if missing), add or replace a single "## Ohara" section with:
+3. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an older "## Ohara" section) with:
    - Ohara at {url} is the source of truth for documentation and engineering guidelines. Never add
      documentation to this repository: propose changes to Ohara instead.
    - The guideline pages and the project doc pages you found, each as its path and one line on what it covers.
@@ -180,7 +181,7 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
        relevant. Say when a page you rely on is stale.
      - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
      - After the change, check it against the guidelines and fix what does not follow them.
-     - Then propose updates to the pages the change affects with propose_change, so a human can review them.
+     - Then propose updates to every page the change affects in one propose_change, so a human reviews a single pull request.
 
 4. Create .claude/hooks/ohara-check.sh with exactly this content, and make it executable:
 
@@ -195,7 +196,7 @@ hash=$(printf '%s' "$changes" | git hash-object --stdin)
 marker="$(git rev-parse --git-dir)/ohara-checked"
 [ "$(cat "$marker" 2>/dev/null)" = "$hash" ] && exit 0
 echo "$hash" > "$marker"
-echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to the Ohara pages these changes affect with propose_change, or say that none are needed."}'
+echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to every Ohara page these changes affect in one propose_change, or say that none are needed."}'
 
 5. In .claude/settings.json, merge:
    - permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page", "mcp__ohara__search",
@@ -218,7 +219,7 @@ documentation lives in the {repo} repository. Never edit documentation in this p
 1. Find what changed. Use the scope the user gave, if any. Otherwise take the uncommitted changes and the commits
    on this branch that are not on the default branch. If there are none, ask the user what to document.
 
-2. Find the pages to check: the project docs listed in the "## Ohara" section of CLAUDE.md, pages that search
+2. Find the pages to check: the project docs listed in the "## Ohara instructions" section of CLAUDE.md, pages that search
    finds for the features, modules and names the changes touch, and stale_pages entries that name this repository.
 
 3. Read each page and compare it with the code as it is now, not only the diff. Note what is wrong, outdated or
@@ -241,7 +242,7 @@ and its documentation lives in the {repo} repository. This is a review: change n
 
 1. Set the scope: what the user named, if anything; otherwise the whole project.
 
-2. Gather the guidelines that apply: the pages listed in the "## Ohara" section of CLAUDE.md, then list_pages and
+2. Gather the guidelines that apply: the pages listed in the "## Ohara instructions" section of CLAUDE.md, then list_pages and
    search for this project's languages, frameworks, domain and practices (security, testing, architecture, naming,
    dependencies, deployment). Read them all. Note the stale ones: their rules may be out of date.
 

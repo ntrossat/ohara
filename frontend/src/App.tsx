@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { get, type Status } from "./api";
+import Consent from "./Consent";
 import Docs from "./Docs";
 import Gate from "./Gate";
 import Setup from "./Setup";
@@ -19,6 +20,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/setup" element={status.configured ? <Navigate to="/" replace /> : <Setup url={status.url} installUrl={status.install_url} />} />
+      <Route path="/oauth/consent" element={status.configured ? <Consent repo={status.repo} /> : <Navigate to="/setup" replace />} />
       <Route
         path="*"
         element={

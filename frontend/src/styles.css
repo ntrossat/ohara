@@ -231,6 +231,12 @@ pre {
   margin-bottom: 40px;
 }
 
+.gate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 /* Setup */
 
 .setup {

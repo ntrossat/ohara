@@ -105,8 +105,8 @@ def mock_github_sign_in(repo_status=200):
     return respx.get(REPO_URL).mock(return_value=httpx.Response(repo_status, json={}))
 
 
-def authorize(client):
-    """Run discovery, registration, and the browser sign-in. Returns the client id and the final redirect."""
+def authorize(client, approve=True):
+    """Run discovery, registration, the browser sign-in, and the consent page. Returns the client id and the final redirect."""
     resource = client.get("/.well-known/oauth-protected-resource/mcp").json()
     assert resource["authorization_servers"] == ["https://docs.example.com"]
     server = client.get("/.well-known/oauth-authorization-server").json()
@@ -127,7 +127,12 @@ def authorize(client):
     github = client.get(urlparse(login).path + "?" + urlparse(login).query).headers["location"]
     done = client.get("/api/auth/callback", params={"code": "gh-code", "state": query(github)["state"]})
     assert done.status_code == 303
-    return registered["client_id"], done.headers["location"]
+    if done.headers["location"] != "/oauth/consent":
+        return registered["client_id"], done.headers["location"]
+    assert client.get("/api/auth/consent").json() == {"client": "Claude Code", "redirect": "http://localhost:33418", "login": "ada"}
+    answered = client.post("/api/auth/consent", json={"approve": approve})
+    assert answered.status_code == 200
+    return registered["client_id"], answered.json()["redirect"]
 
 
 def token(client, **form):
@@ -172,6 +177,33 @@ def test_mcp_sign_in_is_denied_without_repository_access(mcp, configure):
     _, redirect = authorize(mcp)
     assert query(redirect)["error"] == "access_denied"
     assert "code" not in query(redirect)
+
+
+@respx.mock
+def test_mcp_sign_in_can_be_cancelled(mcp, configure):
+    configure(private=True)
+    mock_github_sign_in()
+    _, redirect = authorize(mcp, approve=False)
+    assert query(redirect)["error"] == "access_denied"
+    assert "code" not in query(redirect)
+
+
+@respx.mock
+def test_consent_only_works_in_the_browser_that_signed_in(mcp, configure):
+    configure(private=True)
+    mock_github_sign_in()
+    registered = mcp.post("/register", json={"redirect_uris": [REDIRECT], "token_endpoint_auth_method": "none"}).json()
+    login = mcp.get("/authorize", params={
+        "response_type": "code", "client_id": registered["client_id"], "redirect_uri": REDIRECT,
+        "code_challenge": CHALLENGE, "code_challenge_method": "S256",
+    }).headers["location"]
+    github = mcp.get(urlparse(login).path + "?" + urlparse(login).query).headers["location"]
+    mcp.get("/api/auth/callback", params={"code": "gh-code", "state": query(github)["state"]})
+    consent = mcp.cookies.pop("ohara_consent")
+    assert mcp.post("/api/auth/consent", json={"approve": True}).status_code == 404
+    mcp.cookies.set("ohara_consent", consent)
+    assert mcp.post("/api/auth/consent", json={"approve": True}).status_code == 200
+    assert mcp.post("/api/auth/consent", json={"approve": True}).status_code == 404  # one answer only
 
 
 @respx.mock

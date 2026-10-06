@@ -1,7 +1,7 @@
 """OAuth for MCP clients: Ohara is the authorization server, GitHub sign-in proves who the user is.
 
 An MCP client registers itself, sends the user to /authorize, and the user signs in with
-GitHub. Ohara then issues its own short-lived tokens. Each grant is backed by its own
+GitHub, then approves the client on Ohara's consent page. Ohara then issues its own short-lived tokens. Each grant is backed by its own
 sign-in session, so the GitHub user token stays on the server and repository access is
 re-checked like on the website. Clients, tokens, and pending sign-ins are saved in the database.
 """
@@ -9,7 +9,7 @@ re-checked like on the website. Clients, tokens, and pending sign-ins are saved 
 import hashlib
 import secrets
 import time
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from mcp.server.auth.provider import (
     AccessToken,
@@ -110,19 +110,27 @@ class Provider:
 provider = Provider()
 
 
-def complete(request: str, session: str | None, allowed: bool) -> str | None:
-    """Finish a pending authorization after GitHub sign-in: the client's redirect URL with a code or an error."""
+def describe(request: str) -> dict | None:
+    """What the consent page shows: the client's name and where it sends the user back."""
+    found = db.get("pending", request)
+    client = found and db.get("client", found["client_id"])
+    if not client:
+        return None
+    redirect = urlparse(found["params"]["redirect_uri"])
+    return {"client": client.get("client_name") or "An unnamed app", "redirect": f"{redirect.scheme}://{redirect.netloc}"}
+
+
+def complete(request: str, session: str | None, denied: str | None = None) -> str | None:
+    """Finish a pending authorization: the client's redirect URL with a code, or with an error when `denied`."""
     found = db.pop("pending", request)
     if not found:
         return None
     params = AuthorizationParams.model_validate(found["params"])
     redirect_uri = str(params.redirect_uri)
-    if not session or not allowed:
+    if not session or denied:
         if session:
             sessions.drop(session)
-        return construct_redirect_uri(
-            redirect_uri, error="access_denied", error_description="No access to the documentation repository", state=params.state
-        )
+        return construct_redirect_uri(redirect_uri, error="access_denied", error_description=denied, state=params.state)
     code = secrets.token_urlsafe(32)
     expires_at = time.time() + PENDING_TTL
     granted = Code(
