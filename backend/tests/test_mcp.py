@@ -321,3 +321,10 @@ def test_update_prompt_proposes_documentation_changes(mcp, configure):
     text = result(rpc(mcp, "prompts/get", name="update"))["messages"][0]["content"]["text"]
     assert "https://docs.example.com" in text and REPO in text
     assert "propose_change" in text
+
+
+def test_prompts_cover_the_project_commands(mcp, configure):
+    configure(private=False)
+    assert [prompt["name"] for prompt in result(rpc(mcp, "prompts/list"))["prompts"]] == ["init", "update", "review"]
+    text = result(rpc(mcp, "prompts/get", name="review"))["messages"][0]["content"]["text"]
+    assert REPO in text and "file:line" in text

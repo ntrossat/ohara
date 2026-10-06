@@ -236,6 +236,31 @@ documentation lives in the {repo} repository. Never edit documentation in this p
 """
 
 
+REVIEW_PROMPT = """Review this project against the Ohara documentation and engineering guidelines. Ohara runs at {url}
+and its documentation lives in the {repo} repository. This is a review: change nothing unless the user asks.
+
+1. Set the scope: what the user named, if anything; otherwise the whole project.
+
+2. Gather the guidelines that apply: the pages listed in the "## Ohara" section of CLAUDE.md, then list_pages and
+   search for this project's languages, frameworks, domain and practices (security, testing, architecture, naming,
+   dependencies, deployment). Read them all. Note the stale ones: their rules may be out of date.
+
+3. Check the code in scope against each rule. Record each violation with the guideline page, the rule, the
+   file:line, and a one-line fix. Skip rules that do not apply.
+
+4. Check the project docs in Ohara against the code: note what they describe wrongly or leave out.
+
+5. Report, most serious first:
+   - Violations, grouped by guideline, each with page, rule, file:line and fix.
+   - Docs that disagree with the code.
+   - Guidelines that are unclear, contradict each other, or are stale.
+   End with a count per guideline, and say when the project follows everything.
+
+6. Offer to fix the violations in the code, and to propose the documentation fixes with propose_change. When the
+   code and a guideline disagree and the guideline looks wrong, ask the user which one to change.
+"""
+
+
 def fill(prompt: str) -> str:
     return prompt.replace("{url}", config.base_url()).replace("{repo}", store.load()["repo"]["full_name"])
 
@@ -250,6 +275,12 @@ def init() -> str:
 def update() -> str:
     """Propose documentation updates that match this project's latest code changes."""
     return fill(UPDATE_PROMPT)
+
+
+@server.prompt(name="review", title="Review this project against the guidelines")
+def review() -> str:
+    """Review the active project against the Ohara documentation and engineering guidelines."""
+    return fill(REVIEW_PROMPT)
 
 
 _handler = None
