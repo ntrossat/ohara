@@ -159,6 +159,65 @@ def file_for(path: str) -> str:
     return f"{path}.md"
 
 
+INIT_PROMPT = """Set up this project so you use Ohara as the source of its documentation and engineering
+guidelines, check your work against the guidelines, and keep the documentation up to date.
+Ohara runs at {url} and its documentation lives in the {repo} repository. Work in the current project.
+Merge with existing files, never overwrite them, and replace any earlier Ohara setup so running this again is safe.
+
+1. Find the relevant pages. Look at this project (README, manifests, languages, frameworks, domain), then use
+   list_pages and search, and read the pages that match. Sort them into guidelines (engineering rules that apply
+   to this project) and project docs (pages that describe this project). Note the stale ones.
+
+2. In .mcp.json at the project root, add the Ohara server so the whole team gets it:
+   {"mcpServers": {"ohara": {"type": "http", "url": "{url}/mcp"}}}
+
+3. In CLAUDE.md (create it if missing), add or replace a single "## Ohara" section with:
+   - Ohara at {url} is the source of truth for documentation and engineering guidelines. Never add
+     documentation to this repository: propose changes to Ohara instead.
+   - The guideline pages and the project doc pages you found, each as its path and one line on what it covers.
+   - The workflow:
+     - Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else
+       relevant. Say when a page you rely on is stale.
+     - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
+     - After the change, check it against the guidelines and fix what does not follow them.
+     - Then propose updates to the pages the change affects with propose_change, so a human can review them.
+
+4. Create .claude/hooks/ohara-check.sh with exactly this content, and make it executable:
+
+#!/bin/sh
+# Ohara: once per new set of changes, check them against the guidelines, then update the docs.
+input=$(cat)
+case "$input" in *'"stop_hook_active": true'* | *'"stop_hook_active":true'*) exit 0 ;; esac
+git rev-parse --git-dir >/dev/null 2>&1 || exit 0
+changes=$( { git diff HEAD; git ls-files --others --exclude-standard; } 2>/dev/null )
+[ -z "$changes" ] && exit 0
+hash=$(printf '%s' "$changes" | git hash-object --stdin)
+marker="$(git rev-parse --git-dir)/ohara-checked"
+[ "$(cat "$marker" 2>/dev/null)" = "$hash" ] && exit 0
+echo "$hash" > "$marker"
+echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to the Ohara pages these changes affect with propose_change, or say that none are needed."}'
+
+5. In .claude/settings.json, merge:
+   - permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page", "mcp__ohara__search",
+     "mcp__ohara__stale_pages". Leave propose_change out, so each proposal is confirmed.
+   - hooks.Stop: a command hook running "$CLAUDE_PROJECT_DIR/.claude/hooks/ohara-check.sh".
+
+6. Link the project docs to the code. Read the repository from git remote, then offer to propose one change that
+   adds covers entries ("owner/repo:pattern", such as "acme/api:src/billing/*") to the front matter of each
+   project doc page, matching the code that page describes. A push to this repository then flags those pages as
+   stale. Propose it only if the user agrees.
+
+7. Report the files you wrote and the pages you linked. Remind the user that covers flags need the Ohara GitHub
+   App installed on this repository too, which an Ohara admin can do.
+"""
+
+
+@server.prompt(name="init", title="Set up this project with Ohara")
+def init() -> str:
+    """Configure the active project to follow the Ohara guidelines and keep its documentation up to date."""
+    return INIT_PROMPT.replace("{url}", config.base_url()).replace("{repo}", store.load()["repo"]["full_name"])
+
+
 _handler = None
 
 

@@ -295,3 +295,22 @@ def test_proposal_checks_collaborator_permission_when_the_repository_omits_it(mc
     assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["isError"] is True
     permission.mock(return_value=httpx.Response(200, json={"permission": "write"}))
     assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")
+
+
+def rpc(client, method, **params):
+    body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    return client.post("/mcp", json=body, headers=HEADERS)
+
+
+def test_init_prompt_sets_up_a_project(mcp, configure):
+    configure(private=False)
+    assert "init" in [prompt["name"] for prompt in result(rpc(mcp, "prompts/list"))["prompts"]]
+    text = result(rpc(mcp, "prompts/get", name="init"))["messages"][0]["content"]["text"]
+    assert '"url": "https://docs.example.com/mcp"' in text
+    assert REPO in text
+    assert ".claude/hooks/ohara-check.sh" in text
+
+
+def test_init_prompt_requires_access(mcp, configure):
+    configure(private=True)
+    assert rpc(mcp, "prompts/get", name="init").status_code == 401

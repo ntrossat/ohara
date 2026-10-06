@@ -66,7 +66,7 @@ Every piece of documentation is updated by AI and approved by a human.
 ---
 
 ## Commands
-- `/ohara-init`: configure the active project
+- `/ohara:init`: configure the active project to read the guidelines before planning, check its changes against them, and propose documentation updates after each change
 - `/ohara-ingest`: pull and rewrite existing documentation and guidelines into Ohara
 - `/ohara-review`: review the active project against the documentation and guidelines
 
@@ -106,6 +106,8 @@ Connect a coding assistant to the MCP server. For a private docs repository, it 
 ```sh
 claude mcp add --transport http ohara <OHARA_URL>/mcp
 ```
+
+Then run `/ohara:init` in the project to set it up.
 
 For CI and headless agents, send a GitHub token instead: `--header "Authorization: Bearer <token>"`.
 
