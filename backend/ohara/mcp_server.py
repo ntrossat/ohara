@@ -22,6 +22,7 @@ from dataclasses import dataclass
 
 import httpx
 from mcp.server.mcpserver import Context
+from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
 from mcp.server.auth.routes import create_auth_routes, create_protected_resource_routes
@@ -79,7 +80,7 @@ def read_page(path: str) -> Page:
     root = config.docs_dir()
     found = docs.read_page(root, path)
     if not found:
-        raise ValueError(f"Page not found: {path}")
+        raise ToolError(f"Page not found: {path}")
     return Page(title=found["title"], markdown=found["markdown"], **freshness.status(root, found))
 
 
@@ -116,20 +117,20 @@ async def propose_change(title: str, description: str, pages: list[PageChange], 
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
-        raise ValueError("Sign in required: connect with a GitHub token that can write to the docs repository")
+        raise ToolError("Sign in required: connect with a GitHub token that can write to the docs repository")
     settings = store.load()
     repo = settings["repo"]
     try:
         login = caller.login or (await github.get_user(caller.github_token))["login"]
         can_write = await github.user_can_write(caller.github_token, repo["full_name"], login)
     except github.Unauthorized:
-        raise ValueError("Sign in again: the GitHub token is no longer valid")
+        raise ToolError("Sign in again: the GitHub token is no longer valid")
     if not can_write:
-        raise ValueError("Proposing changes requires write access to the docs repository")
+        raise ToolError("Proposing changes requires write access to the docs repository")
     today = datetime.date.today()
     files = {file_for(page.path): freshness.stamp_verified(page.markdown, today) for page in pages}
     if not files:
-        raise ValueError("No pages to change")
+        raise ToolError("No pages to change")
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "change"
     body = f"{description}\n\n---\nProposed through Ohara by @{login}."
     try:
@@ -139,7 +140,7 @@ async def propose_change(title: str, description: str, pages: list[PageChange], 
         )
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 403:
-            raise ValueError(
+            raise ToolError(
                 "The Ohara GitHub App cannot write to the docs repository. An admin must grant it "
                 "Contents and Pull requests write permissions in the app settings, then accept them on the installation."
             )
@@ -154,7 +155,7 @@ def file_for(path: str) -> str:
         return found["file"]
     parts = path.split("/")
     if not path or any(not part or part.startswith(".") for part in parts):
-        raise ValueError(f"Invalid page path: {path!r}")
+        raise ToolError(f"Invalid page path: {path!r}")
     return f"{path}.md"
 
 

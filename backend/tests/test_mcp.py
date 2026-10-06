@@ -50,7 +50,9 @@ def test_search_matches_every_word(mcp, configure, data_dir):
 
 def test_missing_page_is_a_tool_error(mcp, configure):
     configure(private=False)
-    assert result(call(mcp, "read_page", path="nope"))["isError"] is True
+    found = result(call(mcp, "read_page", path="nope"))
+    assert found["isError"] is True
+    assert "Page not found: nope" in found["content"][0]["text"]
 
 
 def test_private_repository_requires_a_token(mcp, configure):
