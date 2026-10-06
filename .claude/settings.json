@@ -6,17 +6,5 @@
       "mcp__ohara__search",
       "mcp__ohara__stale_pages"
     ]
-  },
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/ohara-check.sh"
-          }
-        ]
-      }
-    ]
   }
 }

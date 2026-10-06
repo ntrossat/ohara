@@ -197,33 +197,16 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
      - Then propose updates to every page the change affects in one propose_change, with the project's repository
        name and active git branch, so each code branch gets a single pull request to review.
 
-4. Create .claude/hooks/ohara-check.sh with exactly this content, and make it executable:
+4. In .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
+   "mcp__ohara__search", "mcp__ohara__stale_pages". Leave propose_change out, so each proposal is confirmed.
+   Remove any Stop hook running .claude/hooks/ohara-check.sh from an earlier setup, and delete that file.
 
-#!/bin/sh
-# Ohara: check each new set of changes against the guidelines and docs, with a one-line reply.
-input=$(cat)
-git rev-parse --git-dir >/dev/null 2>&1 || exit 0
-changes=$( { git diff HEAD; git ls-files --others --exclude-standard | git hash-object --stdin-paths; } 2>/dev/null )
-[ -z "$changes" ] && exit 0
-hash=$(printf '%s' "$changes" | git hash-object --stdin)
-marker="$(git rev-parse --git-dir)/ohara-checked"
-last=$(cat "$marker" 2>/dev/null)
-echo "$hash" > "$marker"
-case "$input" in *'"stop_hook_active": true'* | *'"stop_hook_active":true'*) exit 0 ;; esac
-[ "$last" = "$hash" ] && exit 0
-echo '{"decision": "block", "reason": "Ohara check: check only the changes since the last Ohara check against the guidelines in CLAUDE.md, reusing pages already read, and fix what does not follow them. If they change what an Ohara page describes, propose the updates in one propose_change with the project and active branch. Then reply with a short summary."}'
-
-5. In .claude/settings.json, merge:
-   - permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page", "mcp__ohara__search",
-     "mcp__ohara__stale_pages". Leave propose_change out, so each proposal is confirmed.
-   - hooks.Stop: a command hook running "$CLAUDE_PROJECT_DIR/.claude/hooks/ohara-check.sh".
-
-6. Link the project docs to the code. Read the repository from git remote, then offer to propose one change that
+5. Link the project docs to the code. Read the repository from git remote, then offer to propose one change that
    adds covers entries ("owner/repo:pattern", such as "acme/api:src/billing/*") to the front matter of each
    project doc page, matching the code that page describes. A push to this repository then flags those pages as
    stale. Propose it only if the user agrees.
 
-7. Report the files you wrote and the pages you linked. Remind the user that covers flags need the Ohara GitHub
+6. Report the files you wrote and the pages you linked. Remind the user that covers flags need the Ohara GitHub
    App installed on this repository too, which an Ohara admin can do.
 """
 

@@ -2,13 +2,12 @@ import base64
 import datetime
 import hashlib
 import json
-import pathlib
 from urllib.parse import parse_qs, urlparse
 
 import httpx
 import respx
 
-from ohara import docs, mcp_server, oauth, sessions
+from ohara import docs, oauth, sessions
 from tests.conftest import REPO
 
 REPO_URL = f"https://api.github.com/repos/{REPO}"
@@ -380,12 +379,7 @@ def test_init_prompt_sets_up_a_project(mcp, configure):
     text = result(rpc(mcp, "prompts/get", name="init"))["messages"][0]["content"]["text"]
     assert '"url": "https://docs.example.com/mcp"' in text
     assert REPO in text
-    assert ".claude/hooks/ohara-check.sh" in text
-
-
-def test_init_prompt_hook_matches_the_project_hook():
-    hook = pathlib.Path(__file__).parents[2] / ".claude/hooks/ohara-check.sh"
-    assert hook.read_text() in mcp_server.INIT_PROMPT
+    assert "Remove any Stop hook" in text
 
 
 def test_init_prompt_requires_access(mcp, configure):
