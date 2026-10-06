@@ -61,3 +61,28 @@ Ohara is an open-source project. Never commit anything specific to one company, 
 
 - Use Conventional Commits (`docs:`, `chore:`, …).
 - Keep `README.md` focused on principles and features. Implementation details, architecture diagrams, and tech stack tables were removed from it on purpose.
+
+## Ohara
+
+Ohara, reached through the `ohara` MCP server in `.mcp.json`, is the source of truth for documentation and engineering guidelines. Never add documentation to this repository: propose changes to Ohara instead.
+
+Guidelines:
+
+- `design/brand`: name, logo, colors, typefaces, and voice.
+- `design/style-guide`: design tokens (color, type, spacing, shapes, layout, motion), accessibility, and copy rules.
+- `design/ui-kit`: component and screen specs for the website.
+
+Project docs:
+
+- `architecture/web/authentication`: GitHub App setup, website and MCP sign-in, access checks, and tokens.
+- `architecture/web/mcp-server`: MCP tools, freshness flags, and how proposals become pull requests.
+- `architecture/web/deployment`: running Ohara, the data volume, docs updates, and the API routes.
+- `documentation/docs-repository`: connecting and laying out a docs repository, freshness front matter, and access.
+- `documentation/coding-assistants`: connecting an MCP client, its tools, and proposing changes.
+
+Workflow:
+
+- Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else relevant. Say when a page you rely on is stale.
+- Propose an architecture that follows the guidelines, and name the guidelines it relies on.
+- After the change, check it against the guidelines and fix what does not follow them.
+- Then propose updates to the pages the change affects with `propose_change`, so a human can review them.
