@@ -7,9 +7,11 @@ every 5 minutes.
 
 Agents read pages and propose changes. A proposal becomes a pull request on the docs
 repository, opened by the GitHub App, and a human reviews and merges it. Proposing
-requires a signed-in user who can write to the repository.
+requires a signed-in user who can write to the repository. Pages report their freshness
+(see freshness.py), so agents know which ones to bring up to date.
 """
 
+import datetime
 import hashlib
 import logging
 import re
@@ -28,7 +30,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from ohara import config, db, docs, github, oauth, sessions, store
+from ohara import config, db, docs, freshness, github, oauth, sessions, store
 from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
@@ -59,19 +61,44 @@ def list_pages() -> list[dict]:
     return pages
 
 
+class Page(BaseModel):
+    title: str
+    markdown: str
+    owner: str | None
+    verified: str | None
+    stale: list[str]
+
+
 @server.tool()
-def read_page(path: str) -> str:
-    """Read a documentation page as Markdown. Use a path from list_pages or search; an empty path is the home page."""
-    found = docs.read_page(config.docs_dir(), path)
+def read_page(path: str) -> Page:
+    """Read a documentation page as Markdown. Use a path from list_pages or search; an empty path is the home page.
+
+    Also returns the page's owner, the date a human last verified it, and why it may be stale.
+    Tell the user when a page you rely on is stale.
+    """
+    root = config.docs_dir()
+    found = docs.read_page(root, path)
     if not found:
         raise ValueError(f"Page not found: {path}")
-    return found["markdown"]
+    return Page(title=found["title"], markdown=found["markdown"], **freshness.status(root, found))
 
 
 @server.tool()
 def search(query: str) -> list[dict]:
     """Find documentation pages that contain every word of the query, best matches first."""
-    return docs.search(query, SEARCH_LIMIT)
+    root = config.docs_dir()
+    results = docs.search(query, SEARCH_LIMIT)
+    for result in results:
+        found = docs.read_page(root, result["path"])
+        result["stale"] = freshness.status(root, found)["stale"] if found else []
+    return results
+
+
+@server.tool()
+def stale_pages() -> list[dict]:
+    """List the pages that may be out of date, with the reasons: not verified for a long time,
+    or code they describe changed since. Read each one and propose a change to bring it up to date."""
+    return freshness.stale_pages(config.docs_dir())
 
 
 class PageChange(BaseModel):
@@ -83,7 +110,8 @@ class PageChange(BaseModel):
 async def propose_change(title: str, description: str, pages: list[PageChange], ctx: Context) -> str:
     """Propose documentation changes as a pull request for a human to review and merge.
 
-    Each page has a path, from list_pages or a new one such as "team/onboarding", and its full new Markdown.
+    Each page has a path, from list_pages or a new one such as "team/onboarding", and its full new Markdown,
+    front matter included. Ohara sets the page's `verified` date, so merging the change verifies the page.
     The title and description explain the change to the reviewer. Returns the pull request URL.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
@@ -98,7 +126,8 @@ async def propose_change(title: str, description: str, pages: list[PageChange], 
         raise ValueError("Sign in again: the GitHub token is no longer valid")
     if not can_write:
         raise ValueError("Proposing changes requires write access to the docs repository")
-    files = {file_for(page.path): page.markdown for page in pages}
+    today = datetime.date.today()
+    files = {file_for(page.path): freshness.stamp_verified(page.markdown, today) for page in pages}
     if not files:
         raise ValueError("No pages to change")
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "change"

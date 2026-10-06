@@ -1,28 +1,17 @@
 import base64
-import json
+import datetime
 import hashlib
+import json
 from urllib.parse import parse_qs, urlparse
 
 import httpx
-import pytest
 import respx
-from fastapi.testclient import TestClient
 
-from ohara import docs, main, oauth, sessions
+from ohara import docs, oauth, sessions
 from tests.conftest import REPO
 
 REPO_URL = f"https://api.github.com/repos/{REPO}"
 HEADERS = {"Accept": "application/json, text/event-stream", "MCP-Protocol-Version": "2025-06-18"}
-
-
-@pytest.fixture
-def mcp(monkeypatch):
-    async def no_sync():
-        pass
-
-    monkeypatch.setattr(main, "safe_sync", no_sync)
-    with TestClient(main.app, base_url="https://docs.example.com", follow_redirects=False) as client:
-        yield client
 
 
 def call(client, tool, token=None, **arguments):
@@ -38,7 +27,7 @@ def result(response):
 
 def test_public_repository_is_open_without_a_token(mcp, configure):
     configure(private=False)
-    assert result(call(mcp, "read_page", path="guide"))["structuredContent"]["result"] == "# Guide"
+    assert result(call(mcp, "read_page", path="guide"))["structuredContent"]["markdown"] == "# Guide"
 
 
 def test_lists_pages_with_their_folders(mcp, configure, data_dir):
@@ -55,7 +44,7 @@ def test_search_matches_every_word(mcp, configure, data_dir):
     (data_dir / "docs" / "deploy.md").write_text("# Deploy\n\nShip with blue green releases.")
     docs.index(data_dir / "docs")
     found = result(call(mcp, "search", query="green DEPLOY"))["structuredContent"]["result"]
-    assert found == [{"path": "deploy", "title": "Deploy", "snippet": "Ship with blue green releases."}]
+    assert found == [{"path": "deploy", "title": "Deploy", "snippet": "Ship with blue green releases.", "stale": []}]
     assert result(call(mcp, "search", query="red"))["structuredContent"]["result"] == []
 
 
@@ -76,7 +65,7 @@ def test_private_repository_requires_a_token(mcp, configure):
 def test_token_with_repository_access_can_read(mcp, configure):
     configure(private=True)
     route = respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
-    assert result(call(mcp, "read_page", token="ghp_1", path="guide"))["structuredContent"]["result"] == "# Guide"
+    assert result(call(mcp, "read_page", token="ghp_1", path="guide"))["structuredContent"]["markdown"] == "# Guide"
     result(call(mcp, "read_page", token="ghp_1", path="guide"))
     assert route.call_count == 1  # re-checked every 5 minutes, not on each call
 
@@ -162,7 +151,7 @@ def test_mcp_client_signs_in_with_github(mcp, configure):
         resource="https://docs.example.com/mcp",
     ).json()
     assert tokens["expires_in"] == 3600
-    assert result(call(mcp, "read_page", token=tokens["access_token"], path="guide"))["structuredContent"]["result"] == "# Guide"
+    assert result(call(mcp, "read_page", token=tokens["access_token"], path="guide"))["structuredContent"]["markdown"] == "# Guide"
 
     refreshed = token(mcp, grant_type="refresh_token", refresh_token=tokens["refresh_token"], client_id=client_id).json()
     assert result(call(mcp, "list_pages", token=refreshed["access_token"]))
@@ -263,7 +252,8 @@ def test_proposal_opens_a_pull_request_from_the_app(mcp, configure):
     assert branch["ref"].startswith("refs/heads/ohara/document-the-deploy-freeze-") and branch["sha"] == "base-sha"
     assert ref.calls.last.request.headers["Authorization"] == "Bearer ghs_app"  # the app opens it, so the user can approve
     guide = json.loads(put_guide.calls.last.request.content)
-    assert base64.b64decode(guide["content"]).decode() == "# Guide\n\nNo deploys on Fridays."
+    today = datetime.date.today().isoformat()
+    assert base64.b64decode(guide["content"]).decode() == f"---\nverified: {today}\n---\n\n# Guide\n\nNo deploys on Fridays."
     assert guide["sha"] == "guide-sha"
     assert "sha" not in json.loads(put_new.calls.last.request.content)
     opened = json.loads(pull.calls.last.request.content)

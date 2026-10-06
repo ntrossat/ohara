@@ -133,6 +133,22 @@ async def tarball(token: str, full_name: str, ref: str) -> bytes:
         return r.content
 
 
+# Code changes
+
+
+async def changed_files(token: str, full_name: str, before: str, after: str) -> list[str]:
+    """Files changed between two commits, including the old name of renamed files."""
+    async with client(token) as c:
+        r = await c.get(f"{API}/repos/{full_name}/compare/{before}...{after}", params={"per_page": 300})
+        r.raise_for_status()
+    files = set()
+    for changed in r.json().get("files", []):
+        files.add(changed["filename"])
+        if changed.get("previous_filename"):
+            files.add(changed["previous_filename"])
+    return sorted(files)
+
+
 # Change proposals
 
 

@@ -84,3 +84,28 @@ def tarball(files, links=()):
             info.linkname = target
             tar.addfile(info)
     return buf.getvalue()
+
+
+@pytest.fixture
+def mcp(monkeypatch):
+    from ohara import main
+
+    async def no_sync():
+        pass
+
+    monkeypatch.setattr(main, "safe_sync", no_sync)
+    with TestClient(main.app, base_url="https://docs.example.com", follow_redirects=False) as client:
+        yield client
+
+
+@pytest.fixture
+def synced(monkeypatch):
+    from ohara import main
+
+    calls = []
+
+    async def fake_sync():
+        calls.append(True)
+
+    monkeypatch.setattr(main, "safe_sync", fake_sync)
+    return calls

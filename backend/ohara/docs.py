@@ -96,8 +96,8 @@ def read_page(root: Path, path: str) -> dict | None:
     for candidate in candidates:
         file = resolve_file(root, candidate)
         if file:
-            _, body, title = page_info(file)
-            return {"title": title, "file": candidate, "markdown": body}
+            meta, body, title = page_info(file)
+            return {"title": title, "file": candidate, "markdown": body, "meta": meta}
     return None
 
 
@@ -129,15 +129,20 @@ def page_path(rel: Path) -> str:
     return rel.as_posix()[:-3]
 
 
+def pages(root: Path):
+    """Every page of the snapshot as (page path, file relative to root, front matter)."""
+    for file in sorted(root.rglob("*.md")) if root.exists() else []:
+        rel = file.relative_to(root)
+        if not any(part.startswith(".") for part in rel.parts):
+            yield page_path(rel), rel.as_posix(), page_info(file)[0]
+
+
 def index(root: Path) -> None:
     """Replace the search index with the pages of the snapshot at `root`."""
     rows = []
-    for file in sorted(root.rglob("*.md")) if root.exists() else []:
-        rel = file.relative_to(root)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        _, body, title = page_info(file)
-        rows.append((page_path(rel), title, " ".join(HEADING.sub("", body, count=1).split())))
+    for path, file, _ in pages(root):
+        _, body, title = page_info(root / file)
+        rows.append((path, title, " ".join(HEADING.sub("", body, count=1).split())))
     with db.connect() as conn:
         conn.execute("DELETE FROM pages")
         conn.executemany("INSERT INTO pages (path, title, body) VALUES (?, ?, ?)", rows)

@@ -24,6 +24,12 @@ Every piece of documentation is updated by AI and approved by a human.
 - Full history, review, and traceability
 - Configurable repository
 
+### Freshness
+- Each page can name its owner, the date a human last verified it, and the code it describes
+- Pages not verified for six months are flagged as stale
+- Pages are flagged when the code they describe changes
+- AI assistants see which pages are stale and propose updates for review
+
 ### Multiple access layers
 - **HTML** for human reading and configuration
 - **MCP server** for AI agents and coding assistants
@@ -83,7 +89,17 @@ Every piece of documentation is updated by AI and approved by a human.
 2. Run `docker compose up -d`.
 3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository.
 
-Your docs repository holds plain Markdown files. Folders become the menu, and each page's first heading is its title.
+Your docs repository holds plain Markdown files. Folders become the menu, and each page's first heading is its title. Optional front matter tracks freshness:
+
+```yaml
+---
+owner: ada
+verified: 2026-03-01
+covers: [acme/api:src/billing/*]
+---
+```
+
+To flag pages when code changes, finish setup with only the docs repository, then add the code repositories that `covers` names to the same GitHub App installation. The app can write to every repository it is installed on, though Ohara only reads which files changed in them.
 
 Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
 

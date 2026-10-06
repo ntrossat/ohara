@@ -51,7 +51,9 @@ def test_front_matter_order_wins_over_title(tmp_path):
 def test_read_page_strips_front_matter_and_finds_index(tmp_path):
     write(tmp_path, "README.md", "---\norder: 1\n---\n# Home\nWelcome")
     write(tmp_path, "guides/index.md", "# Guides")
-    assert docs.read_page(tmp_path, "") == {"title": "Home", "file": "README.md", "markdown": "# Home\nWelcome"}
+    assert docs.read_page(tmp_path, "") == {
+        "title": "Home", "file": "README.md", "markdown": "# Home\nWelcome", "meta": {"order": 1}
+    }
     assert docs.read_page(tmp_path, "guides")["file"] == "guides/index.md"
     assert docs.read_page(tmp_path, "missing") is None
 

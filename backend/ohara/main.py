@@ -11,7 +11,7 @@ from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from ohara import config, docs, github, mcp_server, oauth, sessions, store
+from ohara import config, docs, freshness, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
@@ -225,7 +225,7 @@ def page(path: str = ""):
     found = docs.read_page(config.docs_dir(), path)
     if not found:
         raise HTTPException(404, "Page not found")
-    return found
+    return {key: found[key] for key in ("title", "file", "markdown")}
 
 
 @app.get("/api/files/{path:path}", dependencies=[Depends(require_reader)])
@@ -241,6 +241,8 @@ def file(path: str):
 
 @app.post("/api/github/webhook")
 async def webhook(request: Request, background: BackgroundTasks):
+    """Pushes to the docs repository rebuild the site. Pushes to other repositories the app is
+    installed on flag the pages that cover the changed code."""
     settings = store.load()
     body = await request.body()
     secret = (settings.get("app") or {}).get("webhook_secret")
@@ -249,13 +251,41 @@ async def webhook(request: Request, background: BackgroundTasks):
     repo = settings.get("repo")
     payload = json.loads(body)
     event = request.headers.get("X-GitHub-Event")
-    if not repo or (payload.get("repository") or {}).get("full_name") != repo["full_name"]:
+    source = payload.get("repository") or {}
+    if not repo or not source.get("full_name"):
+        return {"synced": False}
+    if source["full_name"] != repo["full_name"]:
+        if event == "push" and payload.get("ref") == f"refs/heads/{source.get('default_branch')}" and payload.get("installation"):
+            background.add_task(safe_check_code, payload)
+            return {"synced": False, "checked": True}
         return {"synced": False}
     pushed_default = event == "push" and payload.get("ref") == f"refs/heads/{repo['default_branch']}"
     if pushed_default or event == "repository":
         background.add_task(safe_sync)
         return {"synced": True}
     return {"synced": False}
+
+
+async def check_code(payload: dict) -> None:
+    """Flag the docs pages that cover code changed by a push."""
+    settings = store.load()
+    full_name, before, after = payload["repository"]["full_name"], payload["before"], payload["after"]
+    if set(before) == {"0"}:  # a new branch: no previous commit to compare with
+        files = sorted({name for commit in payload.get("commits", []) for key in ("added", "modified", "removed") for name in commit.get(key, [])})
+    else:
+        token = await github.installation_token(settings["app"], payload["installation"]["id"])
+        files = await github.changed_files(token, full_name, before, after)
+    compare = f"https://github.com/{full_name}/compare/{before[:12]}...{after[:12]}"
+    flagged = await asyncio.to_thread(freshness.record_push, config.docs_dir(), full_name, files, compare)
+    if flagged:
+        log.info("code change in %s flagged %s", full_name, ", ".join(flagged))
+
+
+async def safe_check_code(payload: dict) -> None:
+    try:
+        await check_code(payload)
+    except Exception:
+        log.exception("code change check failed")
 
 
 # MCP server

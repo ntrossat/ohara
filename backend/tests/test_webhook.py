@@ -2,21 +2,8 @@ import hashlib
 import hmac
 import json
 
-import pytest
 
-from ohara import main
 from tests.conftest import REPO
-
-
-@pytest.fixture
-def synced(monkeypatch):
-    calls = []
-
-    async def fake_sync():
-        calls.append(True)
-
-    monkeypatch.setattr(main, "safe_sync", fake_sync)
-    return calls
 
 
 def post(client, payload, event="push", secret="hook-secret", signature=None):
