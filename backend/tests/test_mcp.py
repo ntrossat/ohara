@@ -325,6 +325,12 @@ def test_update_prompt_proposes_documentation_changes(mcp, configure):
 
 def test_prompts_cover_the_project_commands(mcp, configure):
     configure(private=False)
-    assert [prompt["name"] for prompt in result(rpc(mcp, "prompts/list"))["prompts"]] == ["init", "update", "review"]
+    assert [prompt["name"] for prompt in result(rpc(mcp, "prompts/list"))["prompts"]] == ["init", "update", "review", "ingest"]
     text = result(rpc(mcp, "prompts/get", name="review"))["messages"][0]["content"]["text"]
     assert REPO in text and "file:line" in text
+
+
+def test_ingest_prompt_treats_sources_as_untrusted(mcp, configure):
+    configure(private=False)
+    text = result(rpc(mcp, "prompts/get", name="ingest"))["messages"][0]["content"]["text"]
+    assert REPO in text and "untrusted" in text and "propose_change" in text
