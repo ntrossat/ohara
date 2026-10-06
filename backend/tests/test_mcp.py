@@ -265,6 +265,7 @@ def mock_proposal(push=True):
     respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={"permissions": {"push": push}}))
     respx.get(f"{API}/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
     respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
+    respx.get(f"{REPO_URL}/pulls").mock(return_value=httpx.Response(200, json=[]))
     respx.get(f"{REPO_URL}/git/ref/heads/main").mock(return_value=httpx.Response(200, json={"object": {"sha": "base-sha"}}))
     ref = respx.post(f"{REPO_URL}/git/refs").mock(return_value=httpx.Response(201, json={}))
     respx.get(f"{REPO_URL}/contents/guide.md").mock(return_value=httpx.Response(200, json={"sha": "guide-sha"}))
@@ -293,6 +294,44 @@ def test_proposal_opens_a_pull_request_from_the_app(mcp, configure):
     opened = json.loads(pull.calls.last.request.content)
     assert opened["base"] == "main" and opened["head"] == branch["ref"].removeprefix("refs/heads/")
     assert opened["body"] == "Deploys stop on Fridays.\n\n---\nProposed through Ohara by @ada."
+
+
+@respx.mock
+def test_proposal_from_a_code_branch_uses_a_project_branch(mcp, configure):
+    configure(private=False)
+    ref, _, _, pull = mock_proposal()
+    find = respx.get(f"{REPO_URL}/pulls").mock(return_value=httpx.Response(200, json=[]))
+    answer = result(call(mcp, "propose_change", token="ghp_1", project="api", branch="feature/new billing", **PROPOSAL))
+    assert answer["structuredContent"]["result"].endswith("/pull/7")
+    assert find.calls.last.request.url.params["head"] == "acme:api/feature/new-billing"
+    assert json.loads(ref.calls.last.request.content)["ref"] == "refs/heads/api/feature/new-billing"
+    assert json.loads(pull.calls.last.request.content)["head"] == "api/feature/new-billing"
+
+
+@respx.mock
+def test_proposal_adds_to_the_open_pull_request_of_its_branch(mcp, configure):
+    configure(private=False)
+    ref, put_guide, _, pull = mock_proposal()
+    respx.get(f"{REPO_URL}/pulls").mock(
+        return_value=httpx.Response(200, json=[{"number": 5, "html_url": "https://github.com/acme/handbook/pull/5"}])
+    )
+    comment = respx.post(f"{REPO_URL}/issues/5/comments").mock(return_value=httpx.Response(201, json={}))
+    answer = result(call(mcp, "propose_change", token="ghp_1", project="api", branch="main", **PROPOSAL))
+    assert answer["structuredContent"]["result"] == "https://github.com/acme/handbook/pull/5"
+    assert json.loads(put_guide.calls.last.request.content)["branch"] == "api/main"
+    assert "Document the deploy freeze" in json.loads(comment.calls.last.request.content)["body"]
+    assert not ref.called and not pull.called
+
+
+@respx.mock
+def test_proposal_restarts_a_branch_left_from_a_closed_pull_request(mcp, configure):
+    configure(private=False)
+    ref, _, _, pull = mock_proposal()
+    ref.mock(return_value=httpx.Response(422, json={}))
+    reset = respx.patch(f"{REPO_URL}/git/refs/heads/api/main").mock(return_value=httpx.Response(200, json={}))
+    assert result(call(mcp, "propose_change", token="ghp_1", project="api", branch="main", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")
+    assert json.loads(reset.calls.last.request.content) == {"sha": "base-sha", "force": True}
+    assert pull.called
 
 
 def test_proposal_requires_a_signed_in_caller(mcp, configure):

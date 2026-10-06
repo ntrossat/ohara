@@ -85,4 +85,4 @@ Workflow:
 - Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else relevant. Say when a page you rely on is stale.
 - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
 - After the change, check it against the guidelines and fix what does not follow them.
-- Then propose updates to every page the change affects in one `propose_change`, so a human reviews a single pull request.
+- Then propose updates to every page the change affects in one `propose_change`, with the project `ohara` and the active git branch, so each code branch gets a single pull request to review.

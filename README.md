@@ -112,7 +112,7 @@ Then run `/ohara:init` in the project to set it up.
 
 For CI and headless agents, send a GitHub token instead: `--header "Authorization: Bearer <token>"`.
 
-Assistants read pages and propose changes. A proposal opens a pull request on the docs repository for a human to review. Proposing requires a signed-in user or a token with write access to the repository.
+Assistants read pages and propose changes. A proposal opens a pull request on the docs repository for a human to review, one per code branch: later proposals from the same branch add to it. Proposing requires a signed-in user or a token with write access to the repository.
 
 ---
 

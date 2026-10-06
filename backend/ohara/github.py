@@ -153,13 +153,24 @@ async def changed_files(token: str, full_name: str, before: str, after: str) -> 
 
 
 async def open_pull_request(token: str, full_name: str, base: str, branch: str, files: dict[str, str], title: str, body: str) -> str:
-    """Commit `files` (repository path to text) on a new branch and open a pull request. Returns its URL."""
+    """Commit `files` (repository path to text) on `branch` and return the URL of its pull request.
+
+    When the branch already has an open pull request, the commits are added to it with a comment. Otherwise the
+    branch starts again from `base`, so it holds only this change, and a new pull request is opened.
+    """
     repo = f"{API}/repos/{full_name}"
     async with client(token) as c:
-        r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
+        r = await c.get(f"{repo}/pulls", params={"head": f"{full_name.split('/')[0]}:{branch}", "state": "open"})
         r.raise_for_status()
-        r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": r.json()["object"]["sha"]})
-        r.raise_for_status()
+        pull = next(iter(r.json()), None)
+        if not pull:
+            r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
+            r.raise_for_status()
+            sha = r.json()["object"]["sha"]
+            r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha})
+            if r.status_code == 422:  # left over from an earlier, closed pull request
+                r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True})
+            r.raise_for_status()
         for path, text in files.items():
             url = f"{repo}/contents/{quote(path)}"
             current = await c.get(url, params={"ref": branch})
@@ -168,6 +179,10 @@ async def open_pull_request(token: str, full_name: str, base: str, branch: str, 
                 content["sha"] = current.json()["sha"]
             r = await c.put(url, json=content)
             r.raise_for_status()
+        if pull:
+            r = await c.post(f"{repo}/issues/{pull['number']}/comments", json={"body": f"**{title}**\n\n{body}"})
+            r.raise_for_status()
+            return pull["html_url"]
         r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base})
         r.raise_for_status()
         return r.json()["html_url"]

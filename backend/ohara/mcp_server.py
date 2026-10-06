@@ -108,13 +108,18 @@ class PageChange(BaseModel):
 
 
 @server.tool()
-async def propose_change(title: str, description: str, pages: list[PageChange], ctx: Context) -> str:
+async def propose_change(
+    title: str, description: str, pages: list[PageChange], ctx: Context, project: str = "", branch: str = ""
+) -> str:
     """Propose documentation changes as a pull request for a human to review and merge.
 
     Each page has a path, from list_pages or a new one such as "team/onboarding", and its full new Markdown,
     front matter included. Ohara sets the page's `verified` date, so merging the change verifies the page.
-    The title and description explain the change to the reviewer. Send every page a change affects in one call,
-    so the reviewer gets a single pull request instead of one per page or commit. Returns the pull request URL.
+    The title and description explain the change to the reviewer. Send every page a change affects in one call.
+
+    When the change comes from a code project, pass the project's repository name and its active git branch.
+    Ohara then commits on the "project/branch" branch of the docs repository, and adds to its open pull request
+    if there is one, so each code branch gets a single pull request to review. Returns the pull request URL.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
@@ -132,12 +137,11 @@ async def propose_change(title: str, description: str, pages: list[PageChange], 
     files = {file_for(page.path): freshness.stamp_verified(page.markdown, today) for page in pages}
     if not files:
         raise ToolError("No pages to change")
-    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "change"
     body = f"{description}\n\n---\nProposed through Ohara by @{login}."
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
         return await github.open_pull_request(
-            token, repo["full_name"], repo["default_branch"], f"ohara/{slug}-{secrets.token_hex(3)}", files, title, body
+            token, repo["full_name"], repo["default_branch"], branch_for(title, project, branch), files, title, body
         )
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 403:
@@ -146,6 +150,15 @@ async def propose_change(title: str, description: str, pages: list[PageChange], 
                 "Contents and Pull requests write permissions in the app settings, then accept them on the installation."
             )
         raise
+
+
+def branch_for(title: str, project: str, branch: str) -> str:
+    """The docs branch of a proposal: "project/branch" for a code branch, otherwise a new one named after the title."""
+    parts = [re.sub(r"[^A-Za-z0-9_-]+", "-", part).strip("-") for part in f"{project}/{branch}".split("/")]
+    if project.strip() and branch.strip() and all(parts):
+        return "/".join(parts)
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:40] or "change"
+    return f"ohara/{slug}-{secrets.token_hex(3)}"
 
 
 def file_for(path: str) -> str:
@@ -181,7 +194,8 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
        relevant. Say when a page you rely on is stale.
      - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
      - After the change, check it against the guidelines and fix what does not follow them.
-     - Then propose updates to every page the change affects in one propose_change, so a human reviews a single pull request.
+     - Then propose updates to every page the change affects in one propose_change, with the project's repository
+       name and active git branch, so each code branch gets a single pull request to review.
 
 4. Create .claude/hooks/ohara-check.sh with exactly this content, and make it executable:
 
@@ -196,7 +210,7 @@ hash=$(printf '%s' "$changes" | git hash-object --stdin)
 marker="$(git rev-parse --git-dir)/ohara-checked"
 [ "$(cat "$marker" 2>/dev/null)" = "$hash" ] && exit 0
 echo "$hash" > "$marker"
-echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to every Ohara page these changes affect in one propose_change, or say that none are needed."}'
+echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes against the Ohara guidelines listed in CLAUDE.md, and fix what does not follow them. 2. Then propose updates to every Ohara page these changes affect in one propose_change, with the project and active branch, or say that none are needed."}'
 
 5. In .claude/settings.json, merge:
    - permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page", "mcp__ohara__search",
@@ -229,8 +243,8 @@ documentation lives in the {repo} repository. Never edit documentation in this p
    and add covers entries ("owner/repo:pattern") for code the page now describes. When a stale page still matches
    the code, include it unchanged: merging the proposal marks it verified.
 
-5. Show the user the pages you will change and why, then send them as one propose_change. The title names the
-   change, and the description lists each page with what changed in the code. If nothing needs changing, say so
+5. Show the user the pages you will change and why, then send them as one propose_change, with the project's
+   repository name and active git branch. The title names the change, and the description lists each page with what changed in the code. If nothing needs changing, say so
    instead.
 
 6. Report the pull request URL.
