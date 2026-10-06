@@ -16,7 +16,7 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 
 ## Layout
 
-- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the instance settings, `db.py` the SQLite database in the data volume (all state: settings, sessions, OAuth grants, the full-text search index), `mcp_server.py` the MCP server at `/mcp`, `oauth.py` the OAuth sign-in for MCP clients, `freshness.py` page owners, verified dates, and code-change flags. MCP tools: `list_pages`, `read_page`, `search`, `stale_pages`, `propose_change`. MCP prompt: `init` (`/ohara:init` in Claude Code), which sets up a project: `.mcp.json`, a `CLAUDE.md` section, and a Stop hook that checks each new set of changes against the guidelines, then proposes doc updates.
+- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the instance settings, `db.py` the SQLite database in the data volume (all state: settings, sessions, OAuth grants, the full-text search index), `mcp_server.py` the MCP server at `/mcp`, `oauth.py` the OAuth sign-in for MCP clients, `freshness.py` page owners, verified dates, and code-change flags. MCP tools: `list_pages`, `read_page`, `search`, `stale_pages`, `propose_change`. MCP prompts (`/ohara:<name>` in Claude Code): `init` sets up a project (`.mcp.json`, a `CLAUDE.md` section, and a Stop hook that checks each new set of changes against the guidelines, then proposes doc updates); `update` proposes doc updates from the project's latest code changes.
 - `frontend/src/`: React app. `Setup.tsx` is the setup page, `Gate.tsx` the sign-in screen, `Docs.tsx` the docs reader, `styles.css` the design tokens and styles. The UI follows the brand guidelines, style guide, and UI kit in the `design/` folder of the project's docs repository.
 - The Docker image builds the frontend and serves it from FastAPI. All state lives in the `/data` volume: the docs snapshot and `ohara.db`. Nothing is kept in process memory, apart from caches.
 
@@ -31,6 +31,7 @@ Ohara is an open-source enterprise documentation manager. AI keeps documentation
 - **Ingestion:** a Claude agent imports existing docs through MCP (Jira, Confluence, GitHub, Google Drive). It submits them as PRs, with a review for security and prompt injection.
 - **Planned commands:**
   - `/ohara:init` configures the active project (built).
+  - `/ohara:update` updates the docs from the active project's code changes (built).
   - `/ohara-ingest` pulls existing docs into Ohara.
   - `/ohara-review` reviews the active project against the guidelines.
 - **Workflow:** architects define guidelines, the coding assistant proposes an architecture for each new feature, architects and engineers review it, the assistant builds from the approved plan and updates the docs, and engineers review the result.

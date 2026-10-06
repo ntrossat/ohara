@@ -314,3 +314,10 @@ def test_init_prompt_sets_up_a_project(mcp, configure):
 def test_init_prompt_requires_access(mcp, configure):
     configure(private=True)
     assert rpc(mcp, "prompts/get", name="init").status_code == 401
+
+
+def test_update_prompt_proposes_documentation_changes(mcp, configure):
+    configure(private=False)
+    text = result(rpc(mcp, "prompts/get", name="update"))["messages"][0]["content"]["text"]
+    assert "https://docs.example.com" in text and REPO in text
+    assert "propose_change" in text

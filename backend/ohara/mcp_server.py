@@ -212,10 +212,44 @@ echo '{"decision": "block", "reason": "Ohara: 1. Check the current changes again
 """
 
 
+UPDATE_PROMPT = """Bring the Ohara documentation up to date with this project's code. Ohara runs at {url} and its
+documentation lives in the {repo} repository. Never edit documentation in this project: propose changes to Ohara.
+
+1. Find what changed. Use the scope the user gave, if any. Otherwise take the uncommitted changes and the commits
+   on this branch that are not on the default branch. If there are none, ask the user what to document.
+
+2. Find the pages to check: the project docs listed in the "## Ohara" section of CLAUDE.md, pages that search
+   finds for the features, modules and names the changes touch, and stale_pages entries that name this repository.
+
+3. Read each page and compare it with the code as it is now, not only the diff. Note what is wrong, outdated or
+   missing. When a change adds something no page covers, plan a new page in the folder where it fits.
+
+4. Write the new Markdown of each page. Change only what the code changed, keep the page's style and front matter,
+   and add covers entries ("owner/repo:pattern") for code the page now describes. When a stale page still matches
+   the code, include it unchanged: merging the proposal marks it verified.
+
+5. Show the user the pages you will change and why, then send them as one propose_change. The title names the
+   change, and the description lists each page with what changed in the code. If nothing needs changing, say so
+   instead.
+
+6. Report the pull request URL.
+"""
+
+
+def fill(prompt: str) -> str:
+    return prompt.replace("{url}", config.base_url()).replace("{repo}", store.load()["repo"]["full_name"])
+
+
 @server.prompt(name="init", title="Set up this project with Ohara")
 def init() -> str:
     """Configure the active project to follow the Ohara guidelines and keep its documentation up to date."""
-    return INIT_PROMPT.replace("{url}", config.base_url()).replace("{repo}", store.load()["repo"]["full_name"])
+    return fill(INIT_PROMPT)
+
+
+@server.prompt(name="update", title="Update the documentation from this project")
+def update() -> str:
+    """Propose documentation updates that match this project's latest code changes."""
+    return fill(UPDATE_PROMPT)
 
 
 _handler = None
