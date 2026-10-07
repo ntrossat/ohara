@@ -105,7 +105,7 @@ def mock_github_sign_in(repo_status=200):
     return respx.get(REPO_URL).mock(return_value=httpx.Response(repo_status, json={}))
 
 
-def authorize(client, approve=True):
+def authorize(client, approve=True, cancel=False):
     """Run discovery, registration, the browser sign-in, and the consent page. Returns the client id and the final redirect."""
     resource = client.get("/.well-known/oauth-protected-resource/mcp").json()
     assert resource["authorization_servers"] == ["https://docs.example.com"]
@@ -125,7 +125,8 @@ def authorize(client, approve=True):
     }
     login = client.get("/authorize", params=params).headers["location"]
     github = client.get(urlparse(login).path + "?" + urlparse(login).query).headers["location"]
-    done = client.get("/api/auth/callback", params={"code": "gh-code", "state": query(github)["state"]})
+    sign_in = {"error": "access_denied"} if cancel else {"code": "gh-code"}
+    done = client.get("/api/auth/callback", params=sign_in | {"state": query(github)["state"]})
     assert done.status_code == 303
     if done.headers["location"] != "/oauth/consent":
         return registered["client_id"], done.headers["location"]
@@ -186,6 +187,13 @@ def test_mcp_sign_in_can_be_cancelled(mcp, configure):
     _, redirect = authorize(mcp, approve=False)
     assert query(redirect)["error"] == "access_denied"
     assert "code" not in query(redirect)
+
+
+def test_cancelling_github_sign_in_denies_the_client(mcp, configure):
+    configure(private=True)
+    _, redirect = authorize(mcp, cancel=True)
+    assert query(redirect)["error"] == "access_denied"
+    assert query(redirect)["state"] == "client-state"
 
 
 @respx.mock

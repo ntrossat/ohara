@@ -137,14 +137,23 @@ async def setup_callback(code: str, state: str, settings: dict = Depends(require
         raise HTTPException(400, "Invalid setup state")
     app_credentials = await github.convert_manifest(code)
     store.update(app=app_credentials, setup_state=None)
-    return RedirectResponse(github.install_url(app_credentials), 303)
+    # Back to the setup page, which says which repository to pick before sending the admin to GitHub.
+    return RedirectResponse(f"{config.base_path()}/setup", 303)
 
 
 @app.get("/api/setup/installed")
-async def setup_installed(installation_id: int, settings: dict = Depends(require_unconfigured)):
+async def setup_installed(installation_id: int | None = None, settings: dict = Depends(require_unconfigured)):
+    """GitHub redirects here after an install or a change of repositories; without an id, the setup page checks again."""
     if not settings.get("app"):
         raise HTTPException(400, "Create the GitHub App first")
-    await github.get_installation(settings["app"], installation_id)  # must belong to this app
+    if installation_id is None:
+        # The app is private, so it has at most one installation: on the account that owns it.
+        installations = await github.app_installations(settings["app"])
+        if not installations:
+            return RedirectResponse(f"{config.base_path()}/setup", 303)
+        installation_id = installations[0]["id"]
+    else:
+        await github.get_installation(settings["app"], installation_id)  # must belong to this app
     token = await github.installation_token(settings["app"], installation_id)
     repos = await github.installation_repos(token)
     if len(repos) != 1:
@@ -171,7 +180,8 @@ def login(next: str = "/", mcp: str = "", settings: dict = Depends(require_confi
 
 
 @app.get("/api/auth/callback")
-async def auth_callback(request: Request, code: str, state: str):
+async def auth_callback(request: Request, state: str, code: str = ""):
+    """Without a code, the user cancelled on GitHub: return to the page, or deny the MCP client."""
     settings = store.load()
     try:
         saved = json.loads(request.cookies.get(STATE_COOKIE, "{}"))
@@ -179,6 +189,16 @@ async def auth_callback(request: Request, code: str, state: str):
         saved = {}
     if not store.configured(settings) or not saved.get("state") or not secrets.compare_digest(state, saved["state"]):
         raise HTTPException(400, "Invalid sign-in state")
+    if not code:
+        if saved.get("mcp"):
+            denied = oauth.complete(saved["mcp"], None, "The user cancelled the GitHub sign-in")
+            if not denied:
+                raise HTTPException(400, "Authorization request expired, connect again from your coding assistant")
+            response = RedirectResponse(denied, 303)
+        else:
+            response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
+        response.delete_cookie(STATE_COOKIE)
+        return response
     app_credentials = settings["app"]
     try:
         tokens = await github.exchange_code(app_credentials, code, github.auth_callback_url(config.base_url()))

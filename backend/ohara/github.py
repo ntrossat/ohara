@@ -54,6 +54,7 @@ def manifest(base_url: str) -> dict:
         "redirect_url": f"{base_url}/api/setup/callback",
         "callback_urls": [auth_callback_url(base_url)],
         "setup_url": f"{base_url}/api/setup/installed",
+        "setup_on_update": True,  # GitHub sends the admin back after changing the repository selection
         "default_permissions": {"contents": "write", "pull_requests": "write", "metadata": "read"},
     }
     if is_public(base_url):
@@ -101,6 +102,13 @@ def app_jwt(app: dict) -> str:
 async def get_installation(app: dict, installation_id: int) -> dict:
     async with client(app_jwt(app)) as c:
         r = await c.get(f"{API}/app/installations/{installation_id}")
+        r.raise_for_status()
+        return r.json()
+
+
+async def app_installations(app: dict) -> list[dict]:
+    async with client(app_jwt(app)) as c:
+        r = await c.get(f"{API}/app/installations")
         r.raise_for_status()
         return r.json()
 

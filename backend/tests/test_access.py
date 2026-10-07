@@ -115,6 +115,15 @@ def test_sign_in_flow_creates_session_and_returns_to_page(client, configure):
     assert sessions.exists(done.cookies.get("ohara_session"))
 
 
+def test_cancelled_sign_in_returns_to_page(client, configure):
+    configure(private=True)
+    login = client.get("/api/auth/login", params={"next": "/guide"})
+    state = httpx.URL(login.headers["location"]).params["state"]
+    done = client.get("/api/auth/callback", params={"error": "access_denied", "state": state})
+    assert done.headers["location"] == "/guide"
+    assert "ohara_session" not in done.cookies
+
+
 def test_sign_in_rejects_wrong_state(client, configure):
     configure(private=True)
     client.get("/api/auth/login")

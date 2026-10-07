@@ -17,6 +17,7 @@ def test_manifest_points_github_back_to_this_instance(client):
     assert manifest["hook_attributes"]["url"] == "https://docs.example.com/api/github/webhook"
     assert manifest["default_permissions"] == {"contents": "write", "pull_requests": "write", "metadata": "read"}
     assert manifest["public"] is False
+    assert manifest["setup_on_update"] is True
     assert manifest["name"] == "Ohara docs.example.com"
 
 
@@ -27,14 +28,14 @@ def test_local_app_names_differ():
 
 
 @respx.mock
-def test_callback_saves_app_and_sends_admin_to_install(client, app_credentials):
+def test_callback_saves_app_and_returns_to_setup(client, app_credentials):
     client.get("/api/setup/manifest")
     state = store.load()["setup_state"]
     respx.post("https://api.github.com/app-manifests/abc/conversions").mock(
         return_value=httpx.Response(201, json=app_credentials | {"name": "Ohara docs"})
     )
     response = client.get("/api/setup/callback", params={"code": "abc", "state": state})
-    assert response.headers["location"] == "https://github.com/apps/ohara-docs/installations/new"
+    assert response.headers["location"] == "/setup"
     assert store.load()["app"] == app_credentials
     assert (store.path().stat().st_mode & 0o777) == 0o600
 
@@ -76,6 +77,22 @@ def test_install_on_several_repositories_is_refused(client, app_credentials):
     response = client.get("/api/setup/installed", params={"installation_id": 42})
     assert response.headers["location"] == "/setup?error=one-repository"
     assert not store.configured()
+
+
+@respx.mock
+def test_check_again_finds_the_installation(client, app_credentials):
+    store.save({"app": app_credentials})
+    respx.get("https://api.github.com/app/installations").mock(return_value=httpx.Response(200, json=[{"id": 42}]))
+    mock_installation([{"full_name": "a/1"}, {"full_name": "a/2"}])
+    response = client.get("/api/setup/installed")
+    assert response.headers["location"] == "/setup?error=one-repository"
+
+
+@respx.mock
+def test_check_again_without_installation_returns_to_setup(client, app_credentials):
+    store.save({"app": app_credentials})
+    respx.get("https://api.github.com/app/installations").mock(return_value=httpx.Response(200, json=[]))
+    assert client.get("/api/setup/installed").headers["location"] == "/setup"
 
 
 def test_setup_is_locked_once_configured(client, configure):

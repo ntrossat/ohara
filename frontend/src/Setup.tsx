@@ -86,14 +86,25 @@ export default function Setup({ url, installUrl }: Props) {
             <span className="step-number">02</span>
             <div>
               <h2>Install it on your docs repository</h2>
-              <p>Choose “Only select repositories” and pick the one that holds your docs.</p>
+              <p>
+                Choose “Only select repositories” and pick the one that holds your docs. Already installed? Open its
+                settings on GitHub to change the repositories, then check again.
+              </p>
               {params.get("error") === "one-repository" && (
-                <p className="error">The app was installed on more than one repository. Select only your docs repository.</p>
+                <p className="error">
+                  The app is installed on more than one repository. In its settings on GitHub, keep only your docs
+                  repository and save.
+                </p>
               )}
               {installUrl && (
-                <a className="button" href={installUrl}>
-                  <GitHubIcon /> Install on GitHub
-                </a>
+                <div className="setup-actions">
+                  <a className="button" href={installUrl}>
+                    <GitHubIcon /> Install on GitHub
+                  </a>
+                  <a className="button secondary" href={`${base}/api/setup/installed`}>
+                    Check again
+                  </a>
+                </div>
               )}
             </div>
           </li>
