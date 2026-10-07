@@ -21,15 +21,21 @@ export default function Docs({ status }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [headings, setHeadings] = useState<Heading[]>([]);
   const [query, setQuery] = useState("");
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // Folders start folded; the ones leading to the current page unfold.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const article = useRef<HTMLElement>(null);
 
-  function toggle(folder: string, open = collapsed.has(folder)) {
-    const next = new Set(collapsed);
-    if (open) next.delete(folder);
-    else next.add(folder);
-    setCollapsed(next);
+  function toggle(folder: string, open = !expanded.has(folder)) {
+    const next = new Set(expanded);
+    if (open) next.add(folder);
+    else next.delete(folder);
+    setExpanded(next);
   }
+
+  useEffect(() => {
+    const parts = path.split("/").filter(Boolean);
+    setExpanded((current) => new Set([...current, ...parts.map((_, i) => parts.slice(0, i + 1).join("/"))]));
+  }, [path]);
 
   useEffect(() => {
     get<NavNode[]>("/api/nav").then(setNav, () => {});
@@ -113,7 +119,7 @@ export default function Docs({ status }: Props) {
             Overview
           </NavLink>
         )}
-        <Tree nodes={query ? filter(nav, query) : nav} collapsed={query ? new Set() : collapsed} onToggle={toggle} />
+        <Tree nodes={query ? filter(nav, query) : nav} expanded={query ? null : expanded} onToggle={toggle} />
         {query && !matches("Overview", query) && filter(nav, query).length === 0 && (
           <p className="nav-empty">No pages match “{query}”</p>
         )}
@@ -245,9 +251,11 @@ const Chevron = () => (
   </svg>
 );
 
-type TreeProps = { nodes: NavNode[]; collapsed: Set<string>; onToggle: (folder: string, open?: boolean) => void; nested?: boolean };
+type TreeProps = { nodes: NavNode[]; expanded: Set<string> | null; onToggle: (folder: string, open?: boolean) => void; nested?: boolean };
 
-function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
+function Tree({ nodes, expanded, onToggle, nested }: TreeProps) {
+  // While searching (expanded is null), every folder is open.
+  const isOpen = (folder: string) => !expanded || expanded.has(folder);
   return (
     <ul className={nested ? "nav-children" : undefined}>
       {nodes.map((node) =>
@@ -257,8 +265,8 @@ function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
               <div className="nav-folder">
                 <button
                   className="nav-toggle"
-                  aria-expanded={!collapsed.has(node.folder)}
-                  aria-label={`${collapsed.has(node.folder) ? "Expand" : "Collapse"} ${node.title}`}
+                  aria-expanded={isOpen(node.folder)}
+                  aria-label={`${isOpen(node.folder) ? "Collapse" : "Expand"} ${node.title}`}
                   onClick={() => onToggle(node.folder!)}
                 >
                   <Chevron />
@@ -269,7 +277,7 @@ function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
                   onClick={() => {
                     // Opening the folder's page unfolds it; clicking it again while there folds it.
                     const here = decodeURI(location.pathname).replace(/^\/+|\/+$/g, "") === node.path;
-                    onToggle(node.folder!, here ? collapsed.has(node.folder!) : true);
+                    onToggle(node.folder!, here ? !isOpen(node.folder!) : true);
                   }}
                 >
                   {node.title}
@@ -278,7 +286,7 @@ function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
             ) : (
               <button
                 className="nav-folder"
-                aria-expanded={!collapsed.has(node.folder)}
+                aria-expanded={isOpen(node.folder)}
                 onClick={() => onToggle(node.folder!)}
               >
                 <span className="nav-toggle">
@@ -287,8 +295,8 @@ function Tree({ nodes, collapsed, onToggle, nested }: TreeProps) {
                 <span>{node.title}</span>
               </button>
             )}
-            {node.children.length > 0 && !collapsed.has(node.folder) && (
-              <Tree nodes={node.children} collapsed={collapsed} onToggle={onToggle} nested />
+            {node.children.length > 0 && isOpen(node.folder) && (
+              <Tree nodes={node.children} expanded={expanded} onToggle={onToggle} nested />
             )}
           </li>
         ) : (
