@@ -1,7 +1,3 @@
----
-order: 3
----
-
 # Configure
 
 Ohara has one setting, `OHARA_URL`. Everything else is configured in GitHub:

@@ -1,5 +1,4 @@
 ---
-order: 1
 covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/freshness.py]
 ---
 
@@ -12,6 +11,7 @@ The docs repository holds plain Markdown files, with no config file. This page c
 | Rule | Example |
 |---|---|
 | The folder tree is the menu | `guidelines/api.md` shows as "Api" under "Guidelines" |
+| Pages and folders are sorted by title | "Backend" comes before "Frontend" |
 | A page's title is its front matter `title`, then its first `# ` heading, then its file name | `# API guidelines` titles the page "API guidelines" |
 | A folder's `index.md` or `README.md` is the folder's page, and its title names the folder. With both, `index.md` wins | `design/README.md` with `# Design` |
 | A folder without an index page is named after the folder | `architecture/` shows as "Architecture" |
@@ -31,19 +31,6 @@ guidelines/               # engineering rules every assistant follows
 architecture/             # how the systems fit together
 design/                   # brand, style guide, UI kit
 onboarding/               # for new hires
-```
-
-## Order
-
-Pages are sorted by title. To choose the order, add `order` to the front matter. Lower numbers come first, and pages with an order come before pages without one. A folder takes the order of its index page.
-
-```markdown
----
-order: 1
-title: Getting started
----
-
-# Getting started
 ```
 
 ## Links and images

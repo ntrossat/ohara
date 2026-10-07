@@ -1,5 +1,4 @@
 ---
-order: 1
 covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py]
 ---
 
@@ -10,7 +9,7 @@ covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/fres
 Ohara reads its pages from one GitHub repository of Markdown files, the docs repository. There is no database of pages and no editor: the repository is the source of truth.
 
 - The folder tree is the menu. A page's first heading is its title.
-- Optional front matter sets the order and tracks freshness.
+- Pages are sorted by title. Optional front matter tracks freshness.
 - Every change goes through a pull request, so the full history and review trail stay on GitHub.
 
 See [Docs repository](configure/docs-repository.md).

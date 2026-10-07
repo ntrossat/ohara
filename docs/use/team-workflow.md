@@ -1,5 +1,4 @@
 ---
-order: 2
 covers: [ntrossat/ohara:backend/ohara/mcp_server.py]
 ---
 

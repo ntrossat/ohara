@@ -1,5 +1,4 @@
 ---
-order: 3
 covers: [ntrossat/ohara:Makefile, ntrossat/ohara:backend/pyproject.toml, ntrossat/ohara:frontend/package.json, ntrossat/ohara:.github/workflows/ci.yml]
 ---
 

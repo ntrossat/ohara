@@ -95,7 +95,7 @@ def test_stamp_verified_keeps_the_rest_of_the_front_matter():
     day = datetime.date(2026, 10, 5)
     assert freshness.stamp_verified("# Page", day) == "---\nverified: 2026-10-05\n---\n\n# Page"
     assert freshness.stamp_verified("---\nowner: ada\n---\n# Page", day) == "---\nowner: ada\nverified: 2026-10-05\n---\n# Page"
-    assert freshness.stamp_verified("---\nverified: 2020-01-01\norder: 2\n---\n# Page", day) == "---\nverified: 2026-10-05\norder: 2\n---\n# Page"
+    assert freshness.stamp_verified("---\nverified: 2020-01-01\nowner: ada\n---\n# Page", day) == "---\nverified: 2026-10-05\nowner: ada\n---\n# Page"
 
 
 def test_covers_reads_repository_patterns():

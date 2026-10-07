@@ -1,8 +1,8 @@
 """Docs snapshot: extraction from a GitHub tarball, navigation, and page lookup.
 
 The folder tree is the navigation. A page's title comes from front matter
-`title`, then its first `# ` heading, then its file name. Front matter
-`order` sorts pages before alphabetical order. Each snapshot is indexed for full-text search.
+`title`, then its first `# ` heading, then its file name. Pages are
+sorted by title. Each snapshot is indexed for full-text search.
 """
 
 import io
@@ -47,11 +47,6 @@ def page_info(path: Path) -> tuple[dict, str, str]:
     return meta, body, title
 
 
-def sort_key(meta: dict, title: str) -> tuple:
-    order = meta.get("order")
-    return (order if isinstance(order, (int, float)) else float("inf"), title.lower())
-
-
 def index_of(folder: Path) -> Path | None:
     for name in INDEX_NAMES:
         if (folder / name).is_file():
@@ -71,13 +66,11 @@ def build_nav(root: Path, folder: Path | None = None) -> list[dict]:
             index = index_of(entry)
             if not children and not index:
                 continue
-            meta, _, title = page_info(index) if index else ({}, "", humanize(entry.name))
-            node = {"title": title, "path": rel if index else None, "folder": rel, "children": children}
-            nodes.append((sort_key(meta, title), node))
+            title = page_info(index)[2] if index else humanize(entry.name)
+            nodes.append({"title": title, "path": rel if index else None, "folder": rel, "children": children})
         elif entry.suffix == ".md" and entry.name not in INDEX_NAMES:
-            meta, _, title = page_info(entry)
-            nodes.append((sort_key(meta, title), {"title": title, "path": rel[:-3], "children": []}))
-    return [node for _, node in sorted(nodes, key=lambda pair: pair[0])]
+            nodes.append({"title": page_info(entry)[2], "path": rel[:-3], "children": []})
+    return sorted(nodes, key=lambda node: node["title"].lower())
 
 
 def resolve_file(root: Path, rel: str) -> Path | None:

@@ -1,7 +1,3 @@
----
-order: 4
----
-
 # Use
 
 How people and coding assistants work with Ohara day to day.

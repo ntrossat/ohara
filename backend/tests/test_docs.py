@@ -49,17 +49,18 @@ def test_folders_with_only_images_are_hidden(tmp_path):
     assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Guide"]
 
 
-def test_front_matter_order_wins_over_title(tmp_path):
-    write(tmp_path, "a.md", "# Alpha")
-    write(tmp_path, "z.md", "---\norder: 1\n---\n# Zulu")
-    assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Zulu", "Alpha"]
+def test_pages_are_sorted_by_title(tmp_path):
+    write(tmp_path, "a.md", "# Zulu")
+    write(tmp_path, "z.md", "# Alpha")
+    write(tmp_path, "m/README.md", "# mike")
+    assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Alpha", "mike", "Zulu"]
 
 
 def test_read_page_strips_front_matter_and_finds_index(tmp_path):
-    write(tmp_path, "README.md", "---\norder: 1\n---\n# Home\nWelcome")
+    write(tmp_path, "README.md", "---\nowner: ada\n---\n# Home\nWelcome")
     write(tmp_path, "guides/index.md", "# Guides")
     assert docs.read_page(tmp_path, "") == {
-        "title": "Home", "file": "README.md", "markdown": "# Home\nWelcome", "meta": {"order": 1}
+        "title": "Home", "file": "README.md", "markdown": "# Home\nWelcome", "meta": {"owner": "ada"}
     }
     assert docs.read_page(tmp_path, "guides")["file"] == "guides/index.md"
     assert docs.read_page(tmp_path, "missing") is None
