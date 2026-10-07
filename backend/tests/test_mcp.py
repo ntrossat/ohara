@@ -432,3 +432,52 @@ def test_ingest_prompt_treats_sources_as_untrusted(mcp, configure):
     configure(private=False)
     text = result(rpc(mcp, "prompts/get", name="ingest"))["messages"][0]["content"]["text"]
     assert REPO in text and "untrusted" in text and "propose_change" in text
+
+
+# Repository connection
+
+INSTALLATION = {"account": {"login": "acme"}, "html_url": "https://github.com/organizations/acme/settings/installations/42"}
+
+
+def mock_installation(repos):
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    respx.get(f"{API}/app/installations/42").mock(return_value=httpx.Response(200, json=INSTALLATION))
+    respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
+    respx.get(f"{API}/installation/repositories").mock(
+        return_value=httpx.Response(200, json={"repositories": [{"full_name": name} for name in repos]})
+    )
+
+
+@respx.mock
+def test_check_repository_finds_a_connected_repository(mcp, configure):
+    configure(private=False)
+    mock_installation([REPO, "acme/api"])
+    answer = result(call(mcp, "check_repository", token="ghp_1", repository="Acme/API.git"))
+    assert answer["structuredContent"]["connected"] is True
+
+
+@respx.mock
+def test_check_repository_links_to_the_installation_settings(mcp, configure):
+    configure(private=False)
+    mock_installation([REPO])
+    answer = result(call(mcp, "check_repository", token="ghp_1", repository="acme/api"))["structuredContent"]
+    assert answer["connected"] is False and answer["settings_url"] == INSTALLATION["html_url"]
+
+
+@respx.mock
+def test_check_repository_explains_other_accounts(mcp, configure):
+    configure(private=False)
+    mock_installation([REPO])
+    answer = result(call(mcp, "check_repository", token="ghp_1", repository="globex/api"))["structuredContent"]
+    assert answer["connected"] is False and not answer["settings_url"] and "acme" in answer["reason"]
+
+
+def test_check_repository_requires_a_signed_in_caller(mcp, configure):
+    configure(private=False)
+    assert result(call(mcp, "check_repository", repository="acme/api"))["isError"] is True
+
+
+def test_init_prompt_connects_the_repository(mcp, configure):
+    configure(private=False)
+    text = result(rpc(mcp, "prompts/get", name="init"))["messages"][0]["content"]["text"]
+    assert "check_repository" in text and "settings_url" in text

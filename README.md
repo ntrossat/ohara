@@ -100,7 +100,7 @@ Every piece of documentation is updated by AI and approved by a human.
 ---
 
 ## Commands
-- `/ohara:init`: configure the active project to read the guidelines before planning, check its changes against them, and propose documentation updates after each change
+- `/ohara:init`: connect the active project's repository to the GitHub App, and configure the project to read the guidelines before planning, check its changes against them, and propose documentation updates after each change
 - `/ohara:update`: propose documentation updates that match the active project's latest code changes
 - `/ohara:ingest`: pull and rewrite existing documentation and guidelines into Ohara, as pull requests reviewed for secrets and prompt injection
 - `/ohara:review`: review the active project against the documentation and guidelines, and report each violation with its guideline and location
@@ -134,7 +134,7 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. Add more later in the app's installation settings on GitHub. The app can write to every repository it is installed on, though Ohara only reads which files changed in code repositories and which of their pull requests merged.
+Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though Ohara only reads which files changed in code repositories and which of their pull requests merged.
 
 Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
 

@@ -104,6 +104,38 @@ def stale_pages() -> list[dict]:
     return freshness.stale_pages(config.docs_dir())
 
 
+class Connection(BaseModel):
+    connected: bool
+    reason: str = ""
+    settings_url: str = ""
+
+
+@server.tool()
+async def check_repository(repository: str, ctx: Context) -> Connection:
+    """Check that the Ohara GitHub App is installed on a code repository, given as "owner/name" (from git remote).
+
+    The app must be installed on a code repository for pushes to flag the pages that cover its code, and for its
+    merged pull requests to merge their docs pull requests. When it is not, returns the GitHub page where an
+    admin of the repository's account adds it to the installation.
+    """
+    caller: Caller | None = ctx.request_context.request.state.caller
+    if not caller:
+        raise ToolError("Sign in required: connect with a GitHub token that can read the docs repository")
+    repository = repository.strip().removesuffix(".git").strip("/")
+    settings = store.load()
+    installation = await github.get_installation(settings["app"], settings["installation_id"])
+    account = installation["account"]["login"]
+    if repository.split("/")[0].lower() != account.lower():
+        reason = f"The Ohara GitHub App is private to the {account} account, so it can only be installed on {account} repositories."
+        return Connection(connected=False, reason=reason)
+    token = await github.installation_token(settings["app"], settings["installation_id"])
+    repos = {repo["full_name"].lower() for repo in await github.installation_repos(token)}
+    if repository.lower() in repos:
+        return Connection(connected=True)
+    reason = f"The Ohara GitHub App is not installed on {repository}."
+    return Connection(connected=False, reason=reason, settings_url=installation["html_url"])
+
+
 class PageChange(BaseModel):
     path: str
     markdown: str
@@ -204,14 +236,20 @@ guidelines, check your work against the guidelines, and keep the documentation u
 Ohara runs at {url} and its documentation lives in the {repo} repository. Work in the current project.
 Merge with existing files, never overwrite them, and replace any earlier Ohara setup so running this again is safe.
 
-1. Find the relevant pages. Look at this project (README, manifests, languages, frameworks, domain), then use
+1. Connect the repository. Read it from git remote ("owner/name") and call check_repository. If it is not
+   connected and the result has a settings_url, open that page in the browser (open on macOS, xdg-open on Linux,
+   start on Windows) and ask the user to add this repository to the Ohara GitHub App installation, which needs an
+   admin of the account. Wait for the user, then call check_repository again. If the user skips, or the result has
+   no settings_url, go on and report the reason at the end.
+
+2. Find the relevant pages. Look at this project (README, manifests, languages, frameworks, domain), then use
    list_pages and search, and read the pages that match. Sort them into guidelines (engineering rules that apply
    to this project) and project docs (pages that describe this project). Note the stale ones.
 
-2. In .mcp.json at the project root, add the Ohara server so the whole team gets it:
+3. In .mcp.json at the project root, add the Ohara server so the whole team gets it:
    {"mcpServers": {"ohara": {"type": "http", "url": "{url}/mcp"}}}
 
-3. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an older "## Ohara" section) with:
+4. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an older "## Ohara" section) with:
    - Ohara at {url} is the source of truth for documentation and engineering guidelines. Never add
      documentation to this repository: propose changes to Ohara instead.
    - The guideline pages and the project doc pages you found, each as its path and one line on what it covers.
@@ -224,17 +262,17 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
        name and active git branch, so each code branch gets a single pull request to review. Put the docs pull
        request links in the code pull request's description.
 
-4. In .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
-   "mcp__ohara__search", "mcp__ohara__stale_pages". Leave propose_change out, so each proposal is confirmed.
+5. In .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
+   "mcp__ohara__search", "mcp__ohara__stale_pages", "mcp__ohara__check_repository". Leave propose_change out, so each proposal is confirmed.
    Remove any Stop hook running .claude/hooks/ohara-check.sh from an earlier setup, and delete that file.
 
-5. Link the project docs to the code. Read the repository from git remote, then offer to propose one change that
+6. Link the project docs to the code. Offer to propose one change that
    adds covers entries ("owner/repo:pattern", such as "acme/api:src/billing/*") to the front matter of each
    project doc page, matching the code that page describes. A push to this repository then flags those pages as
    stale. Propose it only if the user agrees.
 
-6. Report the files you wrote and the pages you linked. Remind the user that covers flags need the Ohara GitHub
-   App installed on this repository too, which an Ohara admin can do.
+7. Report the files you wrote, the pages you linked, and whether the repository is connected. If it is not, say
+   that covers flags and merging docs pull requests with code branches only work once it is.
 """
 
 

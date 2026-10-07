@@ -142,8 +142,12 @@ async def setup_callback(code: str, state: str, settings: dict = Depends(require
 
 
 @app.get("/api/setup/installed")
-async def setup_installed(installation_id: int | None = None, settings: dict = Depends(require_unconfigured)):
-    """GitHub redirects here after an install or a change of repositories; without an id, the setup page checks again."""
+async def setup_installed(installation_id: int | None = None):
+    """GitHub redirects here after an install or a change of repositories; without an id, the setup page checks again.
+    Once Ohara is configured, an admin who added a code repository returns to the website."""
+    settings = store.load()
+    if store.configured(settings):
+        return RedirectResponse(f"{config.base_path()}/", 303)
     if not settings.get("app"):
         raise HTTPException(400, "Create the GitHub App first")
     if installation_id is None:

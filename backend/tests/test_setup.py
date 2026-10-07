@@ -122,7 +122,7 @@ def test_setup_is_locked_once_configured(client, configure):
     configure()
     assert client.get("/api/setup/manifest").status_code == 409
     assert client.get("/api/setup/callback", params={"code": "x", "state": "y"}).status_code == 409
-    assert client.get("/api/setup/installed", params={"installation_id": 1}).status_code == 409
+    assert client.get("/api/setup/installed", params={"installation_id": 1}).headers["location"] == "/"  # back from adding a repository
     assert client.get("/api/setup/repositories").status_code == 409
     assert client.post("/api/setup/repository", json={"full_name": REPO}).status_code == 409
 
