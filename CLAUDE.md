@@ -55,8 +55,8 @@ Ohara is an open-source project. Never commit anything specific to one company, 
 
 ## Repositories
 
-- This repo holds the application code, including the HTML website. Never add documentation to it.
-- Documentation lives in a separate, configurable docs repository. Each company points Ohara to its own repository. Never hard-code a docs repository name.
+- This repo holds the application code, including the HTML website, and Ohara's own product docs in `docs/` (for executives, admins, and developers). `.ohara.yml` syncs them into `apps/ohara/` of the docs repository on each push to `main`. Never add other documentation here.
+- Guidelines and all other documentation live in a separate, configurable docs repository. Each company points Ohara to its own repository. Never hard-code a docs repository name.
 - A merge to `main` in the docs repository triggers a site rebuild here.
 
 ## Conventions
@@ -67,7 +67,7 @@ Ohara is an open-source project. Never commit anything specific to one company, 
 
 ## Ohara instructions
 
-Ohara, reached through the `ohara` MCP server in `.mcp.json`, is the source of truth for documentation and engineering guidelines. Never add documentation to this repository: propose changes to Ohara instead.
+Ohara, reached through the `ohara` MCP server in `.mcp.json`, is the source of truth for documentation and engineering guidelines. This project's own docs live in `docs/` and Ohara syncs them: update them in the same change as the code. Every other page lives in Ohara: propose changes to it, never add it to this repository.
 
 Guidelines:
 
@@ -76,7 +76,16 @@ Guidelines:
 - `design/style-guide`: design tokens (color, type, spacing, shapes, layout, motion), accessibility, and copy rules.
 - `design/ui-kit`: component and screen specs for the website.
 
-Project docs:
+Project docs, in `docs/` (synced to `apps/ohara/`):
+
+- `docs/README.md`: what Ohara is and who it helps, for executives.
+- `docs/concepts.md`: how Ohara works, and a glossary.
+- `docs/install/`: installing, setup, HTTPS, paths, and operating (data, updates, CD, troubleshooting).
+- `docs/configure/`: the docs repository layout, code repositories (covers, merge with code, `.ohara.yml` sync), and access.
+- `docs/use/`: coding assistants, the `/ohara:*` commands, and the team workflow.
+- `docs/developers/`: architecture, API, development, and customizing.
+
+Older project docs in Ohara, to fold into `docs/`:
 
 - `architecture/web/authentication`: GitHub App setup, website and MCP sign-in, access checks, and tokens.
 - `architecture/web/mcp-server`: MCP tools, freshness flags, and how proposals become pull requests.
@@ -90,4 +99,4 @@ Workflow:
 - Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else relevant. Say when a page you rely on is stale.
 - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
 - After the change, check it against the guidelines and fix what does not follow them.
-- Then propose updates to every page the change affects in one `propose_change`, with the project `ohara` and the active git branch, so each code branch gets a single pull request to review. Put the docs pull request links in the code pull request's description.
+- Then update `docs/` in the same change, and propose updates to every other page the change affects in one `propose_change`, with the project `ohara` and the active git branch, so each code branch gets a single pull request to review. Put the docs pull request links in the code pull request's description.

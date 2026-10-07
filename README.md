@@ -121,6 +121,8 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ## Getting started
 
+The full documentation is in [`docs/`](docs/README.md): what Ohara does, how to install, configure, and use it, and how it works inside.
+
 1. Set `OHARA_URL` to the address people will use to open Ohara (see `.env.example`). It can include a path, such as `https://acme.com/docs`.
 2. Run `docker compose up -d`.
 3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository and your code repositories. Then choose the docs repository in Ohara.
