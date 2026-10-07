@@ -69,6 +69,8 @@ Nothing is kept in process memory apart from caches. `ohara.db` holds JSON recor
 
 The `pages` table is an SQLite FTS5 index of the snapshot, rebuilt on each update.
 
+Earlier versions saved `settings.json`, `sessions.json`, and `oauth.json`. On first start, Ohara imports them into `ohara.db` and renames them `*.json.imported`.
+
 ## Docs updates
 
 1. A push to the docs repository's default branch sends a webhook. Ohara checks its signature with the app's webhook secret.
@@ -92,7 +94,9 @@ GitHub OAuth with a random `state` in a short-lived cookie. The callback exchang
 
 ### MCP sign-in
 
-Ohara is an OAuth authorization server. The client registers at `/register` and sends the user to `/authorize`. The user signs in with GitHub, then approves the client on the consent page. The consent cookie only exists in the browser that signed in, so a link from someone else can't silently hand them a token. The client gets Ohara tokens (`oha_`, 1 hour, refresh 30 days). Each grant is backed by its own session, so the GitHub token stays on the server.
+Ohara is an OAuth authorization server. The client registers at `/register` and sends the user to `/authorize`. The user signs in with GitHub, then approves the client on the consent page. The consent cookie only exists in the browser that signed in, so a link from someone else can't silently hand them a token. The client gets Ohara tokens (`oha_`, 1 hour, refresh 30 days). Each grant is backed by its own session, so the GitHub token stays on the server. Ohara stores only hashes of its tokens, and keeps the newest 1,000 registered clients, since registration is open.
+
+OAuth needs `OHARA_URL` to start with `https://` or to be `localhost`. Otherwise Ohara logs a warning, disables MCP sign-in, and only GitHub tokens work.
 
 ### Access check
 
@@ -110,6 +114,19 @@ To check access, Ohara reads the docs repository with the user's own token. A us
 ## Proposals
 
 `propose_change` maps each page path to a file, stamps `verified`, sorts the files (docs repository pages by `CODEOWNERS`, synced pages by their `source`), checks the caller's write access to each target repository, then commits on the right branches with the installation token and opens or updates the pull requests. See [API](api.md#mcp-server).
+
+| Branch | Holds |
+|---|---|
+| `<project>/<branch>` | Docs repository pages with no code owner. Merges with the code branch |
+| `<project>/<branch>-review` | Docs repository pages with a code owner |
+| `ohara/<slug>-<random>` | Every docs repository page, when no project and branch are given |
+| `<project>/<branch>` or `ohara/<slug>-<random>` on a code repository | Synced pages of that repository, at their source path |
+
+Characters other than letters, digits, `_` and `-` in branch names become `-`. When a branch has an open pull request, the commits go to it with a comment that holds the title and description. A branch left from a closed pull request is reset to the default branch first, so it holds only the new change.
+
+## Freshness flags
+
+When a code repository pushes to its default branch, the webhook lists the changed files with GitHub's compare API (or the push's commits, for a new branch), syncs the repository's docs when they changed, and matches the files against each page's `covers`. Each match records a flag with the date, the files, and a compare link, up to 20 per page. A flag holds a hash of the page's file: when the page changes, the flags are dropped.
 
 ## App docs sync
 

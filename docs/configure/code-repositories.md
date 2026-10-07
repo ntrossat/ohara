@@ -90,6 +90,8 @@ Ohara then syncs those docs one way into `apps/<repository name>/` of the docs r
 - Markdown files and images (`png`, `jpg`, `gif`, `svg`, `webp`) up to 1 MB each are synced, up to 500 per repository. Hidden files and symbolic links are skipped.
 - Each synced page gets a `source` field, such as `source: "acme/api:docs/billing.md"`. The website's edit link and coding assistants' proposals go to that file.
 - A hand edit under `apps/` in the docs repository is overwritten by the next sync. Edit synced pages in their code repository.
+- When two entries land on the same path, the first one in the list wins. Absolute paths and paths with `..` are ignored.
+- If `.ohara.yml` isn't valid YAML, or isn't a mapping, Ohara keeps the last synced copy and logs the error.
 - When the docs repository's default branch is protected, Ohara opens an `ohara/sync-<repository name>` pull request instead. Merge it as is.
 
 ### Private code

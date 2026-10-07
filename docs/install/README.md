@@ -57,7 +57,7 @@ Put Ohara behind a reverse proxy that terminates TLS and forwards to port `8000`
 
 ## Serve Ohara under a path
 
-`OHARA_URL` can include a path, such as `https://acme.com/docs`. Ohara then serves the website, the API, and the MCP server under that path, and redirects the rest of the host there.
+`OHARA_URL` can include a path, such as `https://acme.com/docs`. Ohara then serves the website, the API, and the MCP server under that path, and redirects the rest of the host there. OAuth discovery for coding assistants stays at the root of the host, where clients look for it: `/.well-known/oauth-authorization-server/docs` and `/.well-known/oauth-protected-resource/docs/mcp`.
 
 To move an existing instance to a path, update the app's settings on GitHub: the callback URL to `OHARA_URL/api/auth/callback` and the webhook URL to `OHARA_URL/api/github/webhook`. Coding assistants reconnect at `OHARA_URL/mcp`.
 

@@ -85,15 +85,6 @@ Project docs, in `docs/` (synced to `apps/ohara/`):
 - `docs/use/`: coding assistants, the `/ohara:*` commands, and the team workflow.
 - `docs/developers/`: architecture, API, development, and customizing.
 
-Older project docs in Ohara, to fold into `docs/`:
-
-- `architecture/web/authentication`: GitHub App setup, website and MCP sign-in, access checks, and tokens.
-- `architecture/web/mcp-server`: MCP tools, freshness flags, and how proposals become pull requests.
-- `architecture/web/deployment`: running Ohara, the data volume, docs updates, and the API routes.
-- `documentation/docs-repository`: connecting and laying out a docs repository, freshness front matter, and access.
-- `documentation/coding-assistants`: connecting an MCP client, its tools, and proposing changes.
-- `documentation/merge-with-code`: merging docs pull requests with their code branch, and guarding folders for review with `CODEOWNERS`.
-
 Workflow:
 
 - Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else relevant. Say when a page you rely on is stale.
