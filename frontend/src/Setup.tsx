@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { base, get } from "./api";
+import { base, get, post } from "./api";
 import { GitHubIcon } from "./Gate";
 import Mark from "./Mark";
 
@@ -45,8 +45,7 @@ export default function Setup({ url, installUrl, installed }: Props) {
           <p className="status-line">first launch</p>
           <h1 className="display">Connect your docs repository</h1>
           <p className="setup-text">
-            Everyone who can read the repository can read these docs. If the repository is public, the docs are public
-            too.
+            Everyone who can read the repository can read these docs, so a public repository makes them public.
           </p>
           {urlMismatch && (
             <p className="notice">
@@ -78,7 +77,7 @@ export default function Setup({ url, installUrl, installed }: Props) {
                     autoComplete="off"
                     spellCheck={false}
                   />
-                  <button className="button" disabled={busy}>
+                  <button className="button" disabled={busy} aria-busy={busy}>
                     <GitHubIcon /> {busy ? "Opening GitHub…" : "Create GitHub App"}
                   </button>
                   {error && <p className="error">{error}</p>}
@@ -131,14 +130,10 @@ function RepositoryChoice({ installUrl }: { installUrl: string }) {
     event.preventDefault();
     setBusy(true);
     setError("");
-    const response = await fetch(`${base}/api/setup/repository`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ full_name: chosen }),
-    }).catch(() => null);
-    if (response?.ok) {
+    try {
+      await post("/api/setup/repository", { full_name: chosen });
       location.assign(`${base}/`);
-    } else {
+    } catch {
       setError("Ohara couldn't use this repository. Check that the app is still installed on it, then try again.");
       setBusy(false);
     }
@@ -151,14 +146,16 @@ function RepositoryChoice({ installUrl }: { installUrl: string }) {
   return (
     <form onSubmit={choose}>
       {repos.length > 6 && (
-        <input
-          aria-label="Filter repositories"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter repositories"
-          autoComplete="off"
-          spellCheck={false}
-        />
+        <label className="repo-filter">
+          <span className="visually-hidden">Filter repositories</span>
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter repositories"
+            autoComplete="off"
+            spellCheck={false}
+          />
+        </label>
       )}
       <div className="repo-list" role="radiogroup" aria-label="Repositories">
         {shown.map((repo) => (
@@ -172,7 +169,7 @@ function RepositoryChoice({ installUrl }: { installUrl: string }) {
             />
             {repo.full_name}
             {repo.private && (
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-label="private">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" role="img" aria-label="private">
                 <rect x="3" y="7" width="10" height="7" rx="1.5" />
                 <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
               </svg>
@@ -182,7 +179,7 @@ function RepositoryChoice({ installUrl }: { installUrl: string }) {
         {!shown.length && <p className="repo-empty">No repository matches.</p>}
       </div>
       <div className="setup-actions">
-        <button className="button" disabled={!chosen || busy}>
+        <button className="button" disabled={!chosen || busy} aria-busy={busy}>
           {busy ? "Connecting…" : "Use this repository"}
         </button>
         <a className="button secondary" href={installUrl}>

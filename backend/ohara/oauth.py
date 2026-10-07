@@ -24,9 +24,9 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 from ohara import config, db, sessions
 
-ACCESS_TTL = 3600
-REFRESH_TTL = 30 * 24 * 3600
-PENDING_TTL = 600
+ACCESS_TTL = 3600  # seconds
+REFRESH_TTL = 30 * 24 * 3600  # seconds
+PENDING_TTL = 600  # seconds to finish a sign-in, consent, or code exchange
 MAX_CLIENTS = 1000  # registration is open to anyone, so keep only the newest clients
 PREFIX = "oha_"  # tells Ohara tokens apart from GitHub tokens, so they are never sent to GitHub
 

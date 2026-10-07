@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 
+import respx
 
 from tests.conftest import REPO
 
@@ -46,4 +47,18 @@ def test_bad_or_missing_signature_is_rejected(client, configure, synced):
     payload = {"ref": "refs/heads/main", "repository": {"full_name": REPO}}
     assert post(client, payload, secret="wrong").status_code == 401
     assert client.post("/api/github/webhook", json=payload).status_code == 401
+    assert synced == []
+
+
+@respx.mock
+def test_merged_code_pull_request_leaves_its_docs_pull_request_for_review(client, configure, synced):
+    configure()
+    payload = {
+        "action": "closed",
+        "repository": {"full_name": "acme/api", "name": "api", "default_branch": "main"},
+        "installation": {"id": 42},
+        "pull_request": {"merged": True, "base": {"ref": "main"}, "head": {"ref": "feature/billing"}},
+    }
+    assert post(client, payload, event="pull_request").json() == {"synced": False}
+    assert not respx.calls  # Ohara never merges or closes a docs pull request
     assert synced == []

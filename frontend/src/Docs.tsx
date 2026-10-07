@@ -6,6 +6,7 @@ import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { get, HttpError, signOut, type NavNode, type Page, type Status } from "./api";
 import { resolveLink } from "./links";
+import { Unreachable } from "./Gate";
 import Mark from "./Mark";
 import { readingOrder, trail } from "./nav";
 
@@ -21,6 +22,7 @@ export default function Docs({ status }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [headings, setHeadings] = useState<Heading[]>([]);
   const [query, setQuery] = useState("");
+  const [unreachable, setUnreachable] = useState(false);
   // Folders start folded; the ones leading to the current page unfold.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const article = useRef<HTMLElement>(null);
@@ -38,7 +40,7 @@ export default function Docs({ status }: Props) {
   }, [path]);
 
   useEffect(() => {
-    get<NavNode[]>("/api/nav").then(setNav, () => {});
+    get<NavNode[]>("/api/nav").then(setNav, () => setUnreachable(true));
   }, []);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function Docs({ status }: Props) {
       (page) => setLoaded({ path, page }),
       (error) => {
         if (error instanceof HttpError && error.status === 404) setLoaded({ path, page: null });
+        else setUnreachable(true);
       },
     );
   }, [path]);
@@ -71,6 +74,7 @@ export default function Docs({ status }: Props) {
   const previous = index > 0 ? pages[index - 1] : null;
   const next = index >= 0 && index < pages.length - 1 ? pages[index + 1] : null;
 
+  if (unreachable) return <Unreachable />;
   return (
     <div className="docs">
       <header className="topbar">

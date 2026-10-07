@@ -18,8 +18,8 @@ Ohara is an open-source documentation manager. It keeps your documentation and e
 
 - **One source of truth.** All docs and guidelines live in one GitHub repository. Ohara imports existing content from other tools as pull requests.
 - **The same rules for every assistant.** Architects write the guidelines once. One command connects any project's coding assistant to them, and an update reaches every project at once.
-- **Docs that keep up with the code.** When code changes, the assistant proposes the matching doc update, and it merges with the code. Pages are flagged when the code they describe changes, or when their last check is more than six months old.
-- **Humans stay in control.** Every change is a pull request. Teams choose which folders always need a human review.
+- **Docs that keep up with the code.** When code changes, the assistant proposes the matching doc update. Pages are flagged when the code they describe changes, or when their last check is more than six months old.
+- **Humans stay in control.** Every change is a pull request that a person reviews and merges.
 
 ## Who it helps
 
@@ -32,7 +32,7 @@ Ohara is an open-source documentation manager. It keeps your documentation and e
 
 ## How it works
 
-```
+```text
   Architects and engineers              Coding assistants (Claude Code, ...)
            |  read                               |  read guidelines, propose updates
            v                                     v
@@ -43,12 +43,12 @@ Ohara is an open-source documentation manager. It keeps your documentation and e
                                    v
      Docs repository  <---- sync ----  Code repositories
      (Markdown, pull requests)         (pushes flag stale pages,
-                                        docs merge with the code)
+                                        docs change with the code)
 ```
 
 1. Your docs are plain Markdown files in a GitHub repository. Folders become the menu.
 2. People read them on the Ohara website. Coding assistants read them through the MCP server.
-3. When an assistant changes code, it proposes the doc updates as a pull request on the docs repository. The pull request merges when the code merges.
+3. When an assistant changes code, it proposes the doc updates as a pull request on the docs repository, linked from the code pull request so reviewers see both.
 4. Pushes to code repositories flag the pages that describe the changed code, so assistants know what to update next.
 
 See [How Ohara works](concepts.md) for the details.
@@ -57,7 +57,7 @@ See [How Ohara works](concepts.md) for the details.
 
 - **Self-hosted.** Ohara runs as one container on your infrastructure. Your docs stay in your GitHub repository.
 - **Access mirrors GitHub.** A public docs repository makes a public website. A private one requires GitHub sign-in, and only people who can read the repository can read the docs. Access is checked again every 5 minutes.
-- **No AI change goes in unreviewed.** AI opens pull requests. People merge them, or merge the code they belong to.
+- **No AI change goes in unreviewed.** AI opens pull requests. People review and merge them.
 - **Open source.** Apache-2.0 license.
 
 ## Where to go next

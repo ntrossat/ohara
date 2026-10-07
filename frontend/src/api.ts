@@ -30,6 +30,18 @@ export async function get<T>(url: string): Promise<T> {
   return response.json();
 }
 
+export async function post<T>(url: string, body: unknown): Promise<T> {
+  const response = await fetch(base + url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (response.status === 401 || response.status === 403) location.reload();
+  if (!response.ok) throw new HttpError(response.status);
+  return response.json();
+}
+
 export function signInUrl(next = location.pathname + location.hash) {
   return `${base}/api/auth/login?next=${encodeURIComponent(next)}`;
 }

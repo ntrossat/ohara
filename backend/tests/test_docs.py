@@ -42,6 +42,13 @@ def test_nav_mirrors_folders_and_uses_index_pages(tmp_path):
     ]
 
 
+def test_folders_with_only_images_are_hidden(tmp_path):
+    write(tmp_path, "guide.md", "# Guide")
+    write(tmp_path, "assets/logo.png", "png")
+    write(tmp_path, "assets/icons/arrow.svg", "<svg/>")
+    assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Guide"]
+
+
 def test_front_matter_order_wins_over_title(tmp_path):
     write(tmp_path, "a.md", "# Alpha")
     write(tmp_path, "z.md", "---\norder: 1\n---\n# Zulu")

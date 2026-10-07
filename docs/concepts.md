@@ -1,6 +1,6 @@
 ---
 order: 1
-covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py, ntrossat/ohara:backend/ohara/codeowners.py]
+covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py]
 ---
 
 # How Ohara works
@@ -22,7 +22,7 @@ Each Ohara instance creates its own GitHub App during setup. The app does everyt
 - signs people in with GitHub;
 - downloads the docs repository;
 - receives events (pushes, pull requests, repository changes) through a webhook;
-- opens, merges, and closes the pull requests that Ohara manages.
+- opens the pull requests that coding assistants propose.
 
 You install the app on the docs repository and on the code repositories that Ohara should follow.
 
@@ -39,13 +39,11 @@ Both serve the same pages, with the same access rules.
 
 AI never edits the docs directly. A coding assistant calls the `propose_change` tool, and Ohara opens a pull request on the docs repository with the new pages. The pull request is opened by the GitHub App, so the person who asked for it can still review and approve it.
 
-## Docs that merge with the code
+## Docs that follow a code branch
 
-When a proposal comes from a code branch, such as `feature/billing` in the `api` repository, its pages go to the `api/feature/billing` branch of the docs repository. When the code pull request merges, Ohara merges the docs pull request. When it closes without merging, Ohara closes the docs pull request.
+When a proposal comes from a code branch, such as `feature/billing` in the `api` repository, its pages go to the `api/feature/billing` branch of the docs repository, in one pull request. Later proposals from the same branch add to it. The assistant links it from the code pull request, and a human reviews and merges it.
 
-Folders the team guards in a `CODEOWNERS` file, such as guidelines, go to a separate pull request that always needs a human review.
-
-See [Code repositories](configure/code-repositories.md#merge-docs-with-the-code).
+See [Code repositories](configure/code-repositories.md#docs-pull-requests-from-a-code-branch).
 
 ## Freshness
 

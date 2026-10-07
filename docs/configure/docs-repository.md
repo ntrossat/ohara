@@ -15,14 +15,14 @@ The docs repository holds plain Markdown files, with no config file. This page c
 | A page's title is its front matter `title`, then its first `# ` heading, then its file name | `# API guidelines` titles the page "API guidelines" |
 | A folder's `index.md` or `README.md` is the folder's page, and its title names the folder. With both, `index.md` wins | `design/README.md` with `# Design` |
 | A folder without an index page is named after the folder | `architecture/` shows as "Architecture" |
-| The root `README.md` is the home page | |
+| The root `index.md` or `README.md` is the home page. With both, `index.md` wins | `README.md` at the root |
 | Files and folders starting with `.` are hidden | `.github/` |
 | Folders with no Markdown files are hidden | `assets/` with only images |
 | `apps/` is reserved for docs synced from code repositories | `apps/api/` |
 
 A suggested layout:
 
-```
+```text
 README.md                 # home page: what this is and where to start
 guidelines/               # engineering rules every assistant follows
   README.md
@@ -31,7 +31,6 @@ guidelines/               # engineering rules every assistant follows
 architecture/             # how the systems fit together
 design/                   # brand, style guide, UI kit
 onboarding/               # for new hires
-CODEOWNERS                # folders that always need a review
 ```
 
 ## Order
@@ -75,10 +74,6 @@ A page is stale when:
 - a push to the default branch of a covered repository changed files that match its patterns. The flag stays until the page itself changes.
 
 Covered repositories must have the GitHub App installed. See [Code repositories](code-repositories.md).
-
-## Review rules
-
-A `CODEOWNERS` file in the docs repository, in `.github/`, at the root, or in `docs/`, names the folders that always need a human review. Pages without a code owner merge with the code change that updated them. See [Merge docs with the code](code-repositories.md#merge-docs-with-the-code).
 
 ## Updates
 

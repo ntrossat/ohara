@@ -12,6 +12,7 @@ import asyncio
 import hashlib
 import logging
 import posixpath
+from pathlib import Path
 
 from ohara import appconfig, config, db, freshness, github
 
@@ -75,7 +76,8 @@ async def sync(settings: dict, full_name: str, ref: str | None = None) -> str | 
         for entry in await github.get_tree(token, full_name, ref) if paths else []:
             parts = entry["path"].split("/")
             regular = entry.get("mode") in ("100644", "100755")  # not a symbolic link
-            if regular and entry["path"].lower().endswith(TYPES) and entry.get("size", 0) <= MAX_SIZE and not any(p.startswith(".") for p in parts):
+            hidden = any(p.startswith(".") for p in parts)
+            if regular and entry["path"].lower().endswith(TYPES) and entry.get("size", 0) <= MAX_SIZE and not hidden:
                 files[entry["path"]] = entry
         targets = list(appconfig.layout(paths, list(files)).items())[:MAX_FILES]
         wanted = {}
@@ -105,7 +107,7 @@ async def sync(settings: dict, full_name: str, ref: str | None = None) -> str | 
         return await commit(token, docs_repo, name, entries, f"docs: sync {full_name}@{ref[:12]}")
 
 
-def orphans(root, names: set[str]) -> list[str]:
+def orphans(root: Path, names: set[str]) -> list[str]:
     """The folders under apps/ in the snapshot that belong to no repository on the installation."""
     apps = root / APPS
     folders = [entry.name for entry in apps.iterdir() if entry.is_dir()] if apps.is_dir() else []

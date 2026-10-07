@@ -14,15 +14,33 @@ import jwt
 API = "https://api.github.com"
 WEB = "https://github.com"
 HEADERS = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+TIMEOUT = 30  # seconds per request
+JWT_TTL = 540  # seconds, under GitHub's 10-minute limit
+CLOCK_SKEW = 60  # seconds the app JWT is backdated, in case GitHub's clock is behind
+PAGE_SIZE = 100  # GitHub's largest page
+
+_client: httpx.AsyncClient | None = None
 
 
 class Unauthorized(Exception):
     """The user token is no longer valid."""
 
 
-def client(token: str | None = None) -> httpx.AsyncClient:
-    headers = HEADERS | ({"Authorization": f"Bearer {token}"} if token else {})
-    return httpx.AsyncClient(headers=headers, timeout=30, follow_redirects=True)
+def client() -> httpx.AsyncClient:
+    """The one client for every GitHub call, created on first use, and again after `close`."""
+    global _client
+    if _client is None or _client.is_closed:
+        _client = httpx.AsyncClient(headers=HEADERS, timeout=TIMEOUT, follow_redirects=True)
+    return _client
+
+
+async def close() -> None:
+    if _client is not None:
+        await _client.aclose()
+
+
+def auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
 
 
 # Registration
@@ -60,7 +78,7 @@ def manifest(base_url: str) -> dict:
     if is_public(base_url):
         # Without a webhook (local runs), docs refresh when Ohara restarts.
         app["hook_attributes"] = {"url": f"{base_url}/api/github/webhook"}
-        app["default_events"] = ["push", "pull_request", "repository"]
+        app["default_events"] = ["push", "repository"]
     return app
 
 
@@ -76,6 +94,11 @@ def repo_summary(repo: dict) -> dict:
     return {"full_name": repo["full_name"], "private": repo["private"], "default_branch": repo["default_branch"]}
 
 
+def repo_fields(repo: dict) -> dict:
+    """What callers use of a repository: its summary and its name."""
+    return repo_summary(repo) | {"name": repo["name"]}
+
+
 def creation_url(org: str | None) -> str:
     if org:
         return f"{WEB}/organizations/{org}/settings/apps/new"
@@ -83,10 +106,9 @@ def creation_url(org: str | None) -> str:
 
 
 async def convert_manifest(code: str) -> dict:
-    async with client() as c:
-        r = await c.post(f"{API}/app-manifests/{code}/conversions")
-        r.raise_for_status()
-        data = r.json()
+    r = await client().post(f"{API}/app-manifests/{code}/conversions")
+    r.raise_for_status()
+    data = r.json()
     keys = ("id", "slug", "client_id", "client_secret", "webhook_secret", "pem")
     return {k: data[k] for k in keys}
 
@@ -96,55 +118,51 @@ async def convert_manifest(code: str) -> dict:
 
 def app_jwt(app: dict) -> str:
     now = int(time.time())
-    return jwt.encode({"iat": now - 60, "exp": now + 540, "iss": str(app["id"])}, app["pem"], algorithm="RS256")
+    return jwt.encode({"iat": now - CLOCK_SKEW, "exp": now + JWT_TTL, "iss": str(app["id"])}, app["pem"], algorithm="RS256")
 
 
 async def get_installation(app: dict, installation_id: int) -> dict:
-    async with client(app_jwt(app)) as c:
-        r = await c.get(f"{API}/app/installations/{installation_id}")
-        r.raise_for_status()
-        return r.json()
+    """The installation's account login and its settings page."""
+    r = await client().get(f"{API}/app/installations/{installation_id}", headers=auth(app_jwt(app)))
+    r.raise_for_status()
+    data = r.json()
+    return {"id": data["id"], "account": data["account"]["login"], "html_url": data["html_url"]}
 
 
 async def app_installations(app: dict) -> list[dict]:
-    async with client(app_jwt(app)) as c:
-        r = await c.get(f"{API}/app/installations")
-        r.raise_for_status()
-        return r.json()
+    r = await client().get(f"{API}/app/installations", headers=auth(app_jwt(app)))
+    r.raise_for_status()
+    return [{"id": installation["id"]} for installation in r.json()]
 
 
 async def installation_token(app: dict, installation_id: int) -> str:
-    async with client(app_jwt(app)) as c:
-        r = await c.post(f"{API}/app/installations/{installation_id}/access_tokens")
-        r.raise_for_status()
-        return r.json()["token"]
+    r = await client().post(f"{API}/app/installations/{installation_id}/access_tokens", headers=auth(app_jwt(app)))
+    r.raise_for_status()
+    return r.json()["token"]
 
 
 async def installation_repos(token: str) -> list[dict]:
     repos, page = [], 1
-    async with client(token) as c:
-        while True:
-            r = await c.get(f"{API}/installation/repositories", params={"per_page": 100, "page": page})
-            r.raise_for_status()
-            batch = r.json()["repositories"]
-            repos += batch
-            if len(batch) < 100:
-                return repos
-            page += 1
+    while True:
+        r = await client().get(f"{API}/installation/repositories", params={"per_page": PAGE_SIZE, "page": page}, headers=auth(token))
+        r.raise_for_status()
+        batch = r.json()["repositories"]
+        repos += [repo_fields(repo) for repo in batch]
+        if len(batch) < PAGE_SIZE:
+            return repos
+        page += 1
 
 
 async def get_repo(token: str, full_name: str) -> dict:
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}")
-        r.raise_for_status()
-        return r.json()
+    r = await client().get(f"{API}/repos/{full_name}", headers=auth(token))
+    r.raise_for_status()
+    return repo_fields(r.json())
 
 
 async def tarball(token: str, full_name: str, ref: str) -> bytes:
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}/tarball/{ref}")
-        r.raise_for_status()
-        return r.content
+    r = await client().get(f"{API}/repos/{full_name}/tarball/{ref}", headers=auth(token))
+    r.raise_for_status()
+    return r.content
 
 
 # Code changes
@@ -152,9 +170,8 @@ async def tarball(token: str, full_name: str, ref: str) -> bytes:
 
 async def changed_files(token: str, full_name: str, before: str, after: str) -> list[str]:
     """Files changed between two commits, including the old name of renamed files."""
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}/compare/{before}...{after}", params={"per_page": 300})
-        r.raise_for_status()
+    r = await client().get(f"{API}/repos/{full_name}/compare/{before}...{after}", params={"per_page": 300}, headers=auth(token))
+    r.raise_for_status()
     files = set()
     for changed in r.json().get("files", []):
         files.add(changed["filename"])
@@ -168,8 +185,11 @@ async def changed_files(token: str, full_name: str, before: str, after: str) -> 
 
 async def get_file(token: str, full_name: str, path: str, ref: str) -> str | None:
     """A file's text at `ref`, or None when it doesn't exist."""
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}/contents/{quote(path)}", params={"ref": ref}, headers={"Accept": "application/vnd.github.raw"})
+    r = await client().get(
+        f"{API}/repos/{full_name}/contents/{quote(path)}",
+        params={"ref": ref},
+        headers=auth(token) | {"Accept": "application/vnd.github.raw"},
+    )
     if r.status_code == 404:
         return None
     r.raise_for_status()
@@ -179,71 +199,66 @@ async def get_file(token: str, full_name: str, path: str, ref: str) -> str | Non
 async def get_tree(token: str, full_name: str, ref: str) -> list[dict]:
     """Every file of the repository at `ref`, with its path, mode, blob sha and size. Raises when GitHub can't list
     them all, so a sync never mistakes a missing file for a deleted one."""
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}/git/trees/{quote(ref)}", params={"recursive": 1})
-        if r.status_code == 409:  # an empty repository
-            return []
-        r.raise_for_status()
+    r = await client().get(f"{API}/repos/{full_name}/git/trees/{quote(ref)}", params={"recursive": 1}, headers=auth(token))
+    if r.status_code == 409:  # an empty repository
+        return []
+    r.raise_for_status()
     if r.json().get("truncated"):  # a partial list would delete the files left out
         raise ValueError(f"{full_name} has too many files to list")
     return [entry for entry in r.json()["tree"] if entry["type"] == "blob"]
 
 
 async def get_blob(token: str, full_name: str, sha: str) -> bytes:
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}/git/blobs/{sha}")
-        r.raise_for_status()
+    r = await client().get(f"{API}/repos/{full_name}/git/blobs/{sha}", headers=auth(token))
+    r.raise_for_status()
     return base64.b64decode(r.json()["content"])
 
 
 async def create_blob(token: str, full_name: str, data: bytes) -> str:
-    async with client(token) as c:
-        r = await c.post(f"{API}/repos/{full_name}/git/blobs", json={"content": base64.b64encode(data).decode(), "encoding": "base64"})
-        r.raise_for_status()
+    blob = {"content": base64.b64encode(data).decode(), "encoding": "base64"}
+    r = await client().post(f"{API}/repos/{full_name}/git/blobs", json=blob, headers=auth(token))
+    r.raise_for_status()
     return r.json()["sha"]
 
 
 async def commit_tree(token: str, full_name: str, branch: str, entries: list[dict], message: str) -> str | None:
     """Commit tree `entries` on top of `branch` and move the branch to it. Returns the commit sha, or None
     when GitHub refuses to move the branch, such as when it is protected."""
-    repo = f"{API}/repos/{full_name}"
-    async with client(token) as c:
-        r = await c.get(f"{repo}/git/ref/heads/{quote(branch)}")
-        r.raise_for_status()
-        parent = r.json()["object"]["sha"]
-        r = await c.get(f"{repo}/git/commits/{parent}")
-        r.raise_for_status()
-        r = await c.post(f"{repo}/git/trees", json={"base_tree": r.json()["tree"]["sha"], "tree": entries})
-        r.raise_for_status()
-        r = await c.post(f"{repo}/git/commits", json={"message": message, "tree": r.json()["sha"], "parents": [parent]})
-        r.raise_for_status()
-        commit = r.json()["sha"]
-        r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": commit})
-        if r.status_code in (403, 409, 422):
-            return None
-        r.raise_for_status()
+    repo, c, headers = f"{API}/repos/{full_name}", client(), auth(token)
+    r = await c.get(f"{repo}/git/ref/heads/{quote(branch)}", headers=headers)
+    r.raise_for_status()
+    parent = r.json()["object"]["sha"]
+    r = await c.get(f"{repo}/git/commits/{parent}", headers=headers)
+    r.raise_for_status()
+    r = await c.post(f"{repo}/git/trees", json={"base_tree": r.json()["tree"]["sha"], "tree": entries}, headers=headers)
+    r.raise_for_status()
+    r = await c.post(f"{repo}/git/commits", json={"message": message, "tree": r.json()["sha"], "parents": [parent]}, headers=headers)
+    r.raise_for_status()
+    commit = r.json()["sha"]
+    r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": commit}, headers=headers)
+    if r.status_code in (403, 409, 422):
+        return None
+    r.raise_for_status()
     return commit
 
 
 async def open_tree_pull_request(token: str, full_name: str, base: str, branch: str, entries: list[dict], title: str, body: str) -> str:
     """Commit tree `entries` on `branch`, started again from `base`, and return the URL of its open pull request."""
-    repo = f"{API}/repos/{full_name}"
-    async with client(token) as c:
-        r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
-        r.raise_for_status()
-        sha = r.json()["object"]["sha"]
-        r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha})
-        if r.status_code == 422:
-            r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True})
-        r.raise_for_status()
+    repo, c, headers = f"{API}/repos/{full_name}", client(), auth(token)
+    r = await c.get(f"{repo}/git/ref/heads/{quote(base)}", headers=headers)
+    r.raise_for_status()
+    sha = r.json()["object"]["sha"]
+    r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha}, headers=headers)
+    if r.status_code == 422:
+        r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True}, headers=headers)
+    r.raise_for_status()
     await commit_tree(token, full_name, branch, entries, title)
     pull = await find_pull(token, full_name, branch)
     if pull:
         return pull["html_url"]
-    async with client(token) as c:
-        r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base})
-        r.raise_for_status()
-        return r.json()["html_url"]
+    r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base}, headers=headers)
+    r.raise_for_status()
+    return r.json()["html_url"]
 
 
 # Change proposals
@@ -255,78 +270,40 @@ async def open_pull_request(token: str, full_name: str, base: str, branch: str, 
     When the branch already has an open pull request, the commits are added to it with a comment. Otherwise the
     branch starts again from `base`, so it holds only this change, and a new pull request is opened.
     """
-    repo = f"{API}/repos/{full_name}"
+    repo, c, headers = f"{API}/repos/{full_name}", client(), auth(token)
     pull = await find_pull(token, full_name, branch)
-    async with client(token) as c:
-        if not pull:
-            r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
-            r.raise_for_status()
-            sha = r.json()["object"]["sha"]
-            r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha})
-            if r.status_code == 422:  # left over from an earlier, closed pull request
-                r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True})
-            r.raise_for_status()
-        for path, text in files.items():
-            url = f"{repo}/contents/{quote(path)}"
-            current = await c.get(url, params={"ref": branch})
-            content = {"message": title, "branch": branch, "content": base64.b64encode(text.encode()).decode()}
-            if current.status_code == 200:
-                content["sha"] = current.json()["sha"]
-            r = await c.put(url, json=content)
-            r.raise_for_status()
-        if pull:
-            r = await c.post(f"{repo}/issues/{pull['number']}/comments", json={"body": f"**{title}**\n\n{body}"})
-            r.raise_for_status()
-            return pull["html_url"]
-        r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base})
+    if not pull:
+        r = await c.get(f"{repo}/git/ref/heads/{quote(base)}", headers=headers)
         r.raise_for_status()
-        return r.json()["html_url"]
+        sha = r.json()["object"]["sha"]
+        r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha}, headers=headers)
+        if r.status_code == 422:  # left over from an earlier, closed pull request
+            r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True}, headers=headers)
+        r.raise_for_status()
+    for path, text in files.items():
+        url = f"{repo}/contents/{quote(path)}"
+        current = await c.get(url, params={"ref": branch}, headers=headers)
+        content = {"message": title, "branch": branch, "content": base64.b64encode(text.encode()).decode()}
+        if current.status_code == 200:
+            content["sha"] = current.json()["sha"]
+        r = await c.put(url, json=content, headers=headers)
+        r.raise_for_status()
+    if pull:
+        r = await c.post(f"{repo}/issues/{pull['number']}/comments", json={"body": f"**{title}**\n\n{body}"}, headers=headers)
+        r.raise_for_status()
+        return pull["html_url"]
+    r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base}, headers=headers)
+    r.raise_for_status()
+    return r.json()["html_url"]
 
 
 async def find_pull(token: str, full_name: str, branch: str) -> dict | None:
-    """The open pull request of a branch, if any."""
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}/pulls", params={"head": f"{full_name.split('/')[0]}:{branch}", "state": "open"})
-        r.raise_for_status()
-    return next(iter(r.json()), None)
-
-
-async def pull_files(token: str, full_name: str, number: int) -> list[str]:
-    """The files a pull request changes, including the old name of renamed files."""
-    files = set()
-    async with client(token) as c:
-        for page in range(1, 31):  # GitHub lists up to 3,000 files
-            r = await c.get(f"{API}/repos/{full_name}/pulls/{number}/files", params={"per_page": 100, "page": page})
-            r.raise_for_status()
-            for changed in r.json():
-                files.add(changed["filename"])
-                if changed.get("previous_filename"):
-                    files.add(changed["previous_filename"])
-            if len(r.json()) < 100:
-                break
-    return sorted(files)
-
-
-async def merge_pull(token: str, full_name: str, number: int, sha: str) -> str | None:
-    """Squash-merge a pull request at commit `sha`. Returns why GitHub refused, or None once merged."""
-    async with client(token) as c:
-        r = await c.put(f"{API}/repos/{full_name}/pulls/{number}/merge", json={"merge_method": "squash", "sha": sha})
-    if r.status_code in (405, 409, 422):
-        return r.json().get("message") or "GitHub refused the merge"
+    """The number and URL of the open pull request of a branch, if any."""
+    params = {"head": f"{full_name.split('/')[0]}:{branch}", "state": "open"}
+    r = await client().get(f"{API}/repos/{full_name}/pulls", params=params, headers=auth(token))
     r.raise_for_status()
-    return None
-
-
-async def close_pull(token: str, full_name: str, number: int) -> None:
-    async with client(token) as c:
-        r = await c.patch(f"{API}/repos/{full_name}/pulls/{number}", json={"state": "closed"})
-        r.raise_for_status()
-
-
-async def comment(token: str, full_name: str, number: int, body: str) -> None:
-    async with client(token) as c:
-        r = await c.post(f"{API}/repos/{full_name}/issues/{number}/comments", json={"body": body})
-        r.raise_for_status()
+    pull = next(iter(r.json()), None)
+    return {"number": pull["number"], "html_url": pull["html_url"]} if pull else None
 
 
 # User sign-in
@@ -337,15 +314,14 @@ def authorize_url(app: dict, redirect_uri: str, state: str) -> str:
     return f"{WEB}/login/oauth/authorize?{query}"
 
 
-async def _token_request(app: dict, **params) -> dict:
-    async with client() as c:
-        r = await c.post(
-            f"{WEB}/login/oauth/access_token",
-            data={"client_id": app["client_id"], "client_secret": app["client_secret"], **params},
-            headers={"Accept": "application/json"},
-        )
-        r.raise_for_status()
-        data = r.json()
+async def _token_request(app: dict, **params: str) -> dict:
+    r = await client().post(
+        f"{WEB}/login/oauth/access_token",
+        data={"client_id": app["client_id"], "client_secret": app["client_secret"], **params},
+        headers={"Accept": "application/json"},
+    )
+    r.raise_for_status()
+    data = r.json()
     if "access_token" not in data:
         raise Unauthorized(data.get("error_description", "token request failed"))
     return data
@@ -360,31 +336,31 @@ async def refresh_token(app: dict, refresh: str) -> dict:
 
 
 async def get_user(token: str) -> dict:
-    async with client(token) as c:
-        r = await c.get(f"{API}/user")
-        if r.status_code == 401:
-            raise Unauthorized()
-        r.raise_for_status()
-        return r.json()
+    """The user's login and avatar."""
+    r = await client().get(f"{API}/user", headers=auth(token))
+    if r.status_code == 401:
+        raise Unauthorized()
+    r.raise_for_status()
+    data = r.json()
+    return {"login": data["login"], "avatar_url": data.get("avatar_url", "")}
 
 
 async def user_can_write(token: str, full_name: str, login: str) -> bool:
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}")
-        if r.status_code == 401:
-            raise Unauthorized()
-        if not r.is_success:
-            return False
-        if "permissions" in r.json():
-            return bool(r.json()["permissions"].get("push"))
-        r = await c.get(f"{API}/repos/{full_name}/collaborators/{quote(login)}/permission")
+    c, headers = client(), auth(token)
+    r = await c.get(f"{API}/repos/{full_name}", headers=headers)
+    if r.status_code == 401:
+        raise Unauthorized()
+    if not r.is_success:
+        return False
+    if "permissions" in r.json():
+        return bool(r.json()["permissions"].get("push"))
+    r = await c.get(f"{API}/repos/{full_name}/collaborators/{quote(login)}/permission", headers=headers)
     return r.is_success and r.json().get("permission") in ("admin", "maintain", "write")
 
 
 async def user_can_read(token: str, full_name: str) -> bool:
     """A user token only sees repositories both the user and the app can access."""
-    async with client(token) as c:
-        r = await c.get(f"{API}/repos/{full_name}")
+    r = await client().get(f"{API}/repos/{full_name}", headers=auth(token))
     if r.status_code == 401:
         raise Unauthorized()
     if r.status_code in (403, 404):

@@ -69,7 +69,7 @@ def blob(text):
 def mock_sync(code_files, docs_files=None, config="docs:\n  - docs\n", private=False, protected=False):
     """Mock GitHub for a sync of acme/api. Returns the routes that write to the docs repository."""
     respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
-    respx.get(CODE).mock(return_value=httpx.Response(200, json={"name": "api", "private": private, "default_branch": "main"}))
+    respx.get(CODE).mock(return_value=httpx.Response(200, json={"full_name": "acme/api", "name": "api", "private": private, "default_branch": "main"}))
     respx.get(f"{CODE}/contents/.ohara.yml").mock(
         return_value=httpx.Response(200, text=config) if config is not None else httpx.Response(404)
     )
@@ -190,6 +190,22 @@ def test_symbolic_links_are_not_synced(configure):
     )
     run_sync()
     assert written(routes) == {"apps/api/a.md": "new-blob"}
+
+
+@respx.mock
+def test_files_over_1_mb_are_not_synced(configure):
+    configure(private=False)
+    routes = mock_sync({"docs/limit.md": "x" * appdocs.MAX_SIZE, "docs/big.png": "x" * (appdocs.MAX_SIZE + 1)})
+    run_sync()
+    assert set(written(routes)) == {"apps/api/limit.md"}
+
+
+@respx.mock
+def test_at_most_500_files_are_synced(configure):
+    configure(private=False)
+    routes = mock_sync({f"docs/page-{n}.md": "# Page" for n in range(appdocs.MAX_FILES + 1)})
+    run_sync()
+    assert len(written(routes)) == 500
 
 
 def test_docs_repository_made_public_syncs_every_app_again(client, configure, calls):

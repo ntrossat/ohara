@@ -1,9 +1,11 @@
 """Instance settings: GitHub App credentials and the docs repository."""
 
+from pathlib import Path
+
 from ohara import db
 
 
-def path():
+def path() -> Path:
     return db.path()
 
 
@@ -13,12 +15,12 @@ def load() -> dict:
 
 def save(settings: dict) -> None:
     with db.connect() as conn:
-        conn.execute("DELETE FROM records WHERE kind = 'settings'")
+        db.delete_kind("settings", conn)
         for key, value in settings.items():
             db.put("settings", key, value, conn=conn)
 
 
-def update(**values) -> dict:
+def update(**values: object) -> dict:
     with db.connect() as conn:
         for key, value in values.items():
             db.put("settings", key, value, conn=conn)

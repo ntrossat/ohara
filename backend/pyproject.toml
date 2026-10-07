@@ -2,7 +2,7 @@
 name = "ohara"
 version = "0.1.0"
 description = "Ohara documentation website backend"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",

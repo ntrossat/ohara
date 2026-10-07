@@ -9,6 +9,7 @@ import io
 import re
 import shutil
 import tarfile
+from collections.abc import Iterator
 from pathlib import Path
 
 import yaml
@@ -129,7 +130,7 @@ def page_path(rel: Path) -> str:
     return rel.as_posix()[:-3]
 
 
-def pages(root: Path):
+def pages(root: Path) -> Iterator[tuple[str, str, dict]]:
     """Every page of the snapshot as (page path, file relative to root, front matter)."""
     for file in sorted(root.rglob("*.md")) if root.exists() else []:
         rel = file.relative_to(root)
@@ -143,9 +144,7 @@ def index(root: Path) -> None:
     for path, file, _ in pages(root):
         _, body, title = page_info(root / file)
         rows.append((path, title, " ".join(HEADING.sub("", body, count=1).split())))
-    with db.connect() as conn:
-        conn.execute("DELETE FROM pages")
-        conn.executemany("INSERT INTO pages (path, title, body) VALUES (?, ?, ?)", rows)
+    db.replace_pages(rows)
 
 
 def search(query: str, limit: int) -> list[dict]:
@@ -153,11 +152,4 @@ def search(query: str, limit: int) -> list[dict]:
     words = query.split()
     if not words:
         return []
-    match = " ".join('"' + word.replace('"', '""') + '"' for word in words)
-    with db.connect() as conn:
-        rows = conn.execute(
-            "SELECT path, title, snippet(pages, 2, '', '', '…', 32) FROM pages"
-            " WHERE pages MATCH ? ORDER BY bm25(pages, 0, 10, 1) LIMIT ?",
-            (match, limit),
-        ).fetchall()
-    return [{"path": path, "title": title, "snippet": snippet} for path, title, snippet in rows]
+    return [{"path": path, "title": title, "snippet": snippet} for path, title, snippet in db.search_pages(words, limit)]

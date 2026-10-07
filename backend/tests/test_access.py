@@ -24,6 +24,23 @@ def test_sessions_survive_a_restart(client, configure):
     assert client.get("/api/status").json()["user"]["login"] == "ada"
 
 
+@respx.mock
+def test_each_use_renews_the_session_cookie(client, configure):
+    configure(private=True)
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    client.cookies.set("ohara_session", sid := sign_in())
+    for response in (client.get("/api/status"), client.get("/api/nav")):
+        cookie = response.headers["set-cookie"]
+        assert cookie.startswith(f"ohara_session={sid};")
+        assert f"Max-Age={sessions.TTL}" in cookie
+        assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=lax" in cookie
+
+
+def test_signed_out_requests_set_no_cookie(client, configure):
+    configure(private=True)
+    assert "set-cookie" not in client.get("/api/status").headers
+
+
 def test_public_repository_is_open_without_sign_in(client, configure):
     configure(private=False)
     assert client.get("/api/page", params={"path": "guide"}).json()["title"] == "Guide"
@@ -113,6 +130,37 @@ def test_sign_in_flow_creates_session_and_returns_to_page(client, configure):
     done = client.get("/api/auth/callback", params={"code": "c", "state": state})
     assert done.headers["location"] == "/guide"
     assert sessions.exists(done.cookies.get("ohara_session"))
+
+
+def session_cookie_from_sign_in(client):
+    login = client.get("/api/auth/login")
+    state = httpx.URL(login.headers["location"]).params["state"]
+    respx.post("https://github.com/login/oauth/access_token").mock(
+        return_value=httpx.Response(200, json={"access_token": "ghu_1", "refresh_token": "ghr_1", "expires_in": 28800})
+    )
+    respx.get("https://api.github.com/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
+    done = client.get("/api/auth/callback", params={"code": "c", "state": state})
+    return next(c for c in done.headers.get_list("set-cookie") if c.startswith("ohara_session="))
+
+
+@respx.mock
+def test_sign_in_sets_an_http_only_lax_secure_session_cookie(client, configure):
+    configure(private=True)
+    cookie = session_cookie_from_sign_in(client)
+    assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=lax" in cookie
+
+
+@respx.mock
+def test_session_cookie_is_not_secure_on_plain_http(configure, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from ohara.main import app
+
+    monkeypatch.setenv("OHARA_URL", "http://docs.example.com")
+    configure(private=True)
+    cookie = session_cookie_from_sign_in(TestClient(app, base_url="http://docs.example.com", follow_redirects=False))
+    assert "HttpOnly" in cookie and "SameSite=lax" in cookie
+    assert "Secure" not in cookie
 
 
 def test_cancelled_sign_in_returns_to_page(client, configure):

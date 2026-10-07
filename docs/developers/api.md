@@ -25,7 +25,7 @@ All routes are under `OHARA_URL`, including its path.
 | `GET`, `POST /api/auth/consent` | The signed-in browser | Details and answer for an MCP client's approval |
 | `POST /api/auth/logout` | Everyone | End the session |
 | `POST /api/github/webhook` | GitHub, signed | Events, below |
-| `/mcp` | Readers | The MCP server |
+| `GET`, `POST`, `DELETE /mcp` | Readers | The MCP server |
 | `/.well-known/*`, `/register`, `/authorize`, `/token`, `/revoke` | MCP clients | OAuth for MCP clients |
 
 "Readers" means everyone for a public docs repository, and signed-in users who can read it for a private one. Others get `401` (not signed in) or `403` (no access).
@@ -36,13 +36,12 @@ All routes are under `OHARA_URL`, including its path.
 |---|---|---|
 | `push` to the default branch | Docs repository | Updates the snapshot. If someone other than the app changed `apps/<name>/`, syncs that repository again |
 | `push` to the default branch | Code repository | Syncs its docs if they or `.ohara.yml` changed, then flags the pages that cover the changed files |
-| `pull_request` closed | Code repository, into its default branch | Merges the matching docs pull request, or closes it if the code wasn't merged |
 | `repository` | Docs repository | Updates the snapshot, visibility, and default branch. When made public, syncs every code repository again |
 | `installation_repositories` | The installation | Syncs added repositories, and removes the folders of removed ones |
 
 ## MCP server
 
-Streamable HTTP, stateless, at `/mcp`. Callers send `Authorization: Bearer` with an `oha_` token or a GitHub token. For a public docs repository, reading needs no token.
+Streamable HTTP, stateless, at `/mcp`. Callers send `Authorization: Bearer` with an `oha_` token or a GitHub token. For a public docs repository, reading needs no token, but an invalid or expired token still gets `401`. A `401` carries a `WWW-Authenticate: Bearer resource_metadata="..."` header that points MCP clients to Ohara's OAuth metadata.
 
 ### Tools
 

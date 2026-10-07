@@ -6,20 +6,27 @@ import json
 import logging
 import secrets
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from ohara import appdocs, codeowners, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
+from ohara import appdocs, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
 SESSION_COOKIE = "ohara_session"
 STATE_COOKIE = "ohara_state"
 CONSENT_COOKIE = "ohara_consent"
+SETUP_TTL = 600  # seconds to come back from GitHub with the new app
+SIGN_IN_TTL = 600  # seconds to come back from the GitHub sign-in
+AUTH_METADATA = "/.well-known/oauth-authorization-server"
+RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
 sync_lock = asyncio.Lock()
 
 
@@ -86,12 +93,13 @@ async def safe_remove_app(full_name: str) -> None:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if store.configured():
         await asyncio.to_thread(docs.index, config.docs_dir())  # search works even if GitHub is unreachable
         asyncio.create_task(startup())
     async with mcp_server.run():
         yield
+    await github.close()
 
 
 app = FastAPI(title="Ohara", lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -101,12 +109,17 @@ def secure_cookies() -> bool:
     return config.base_url().startswith("https://")
 
 
-def set_cookie(response, name: str, value: str, max_age: int | None = None) -> None:
+def set_cookie(response: Response, name: str, value: str, max_age: int | None = None) -> None:
     response.set_cookie(name, value, max_age=max_age, httponly=True, secure=secure_cookies(), samesite="lax")
 
 
-async def viewer(request: Request, settings: dict) -> sessions.Session | None:
-    return await sessions.current(request.cookies.get(SESSION_COOKIE), settings["app"], settings["repo"]["full_name"])
+async def viewer(request: Request, response: Response, settings: dict) -> sessions.Session | None:
+    """Each use renews the session cookie, so a session ends only after `sessions.TTL` without use."""
+    sid = request.cookies.get(SESSION_COOKIE)
+    session = await sessions.current(sid, settings["app"], settings["repo"]["full_name"])
+    if session:
+        set_cookie(response, SESSION_COOKIE, sid, max_age=sessions.TTL)
+    return session
 
 
 def can_read(settings: dict, session: sessions.Session | None) -> bool:
@@ -117,14 +130,14 @@ def can_read(settings: dict, session: sessions.Session | None) -> bool:
 def require_configured() -> dict:
     settings = store.load()
     if not store.configured(settings):
-        raise HTTPException(503, "Ohara is not configured")
+        raise HTTPException(503, "Ohara is not set up yet: an admin finishes setup on the setup page")
     return settings
 
 
-async def require_reader(request: Request, settings: dict = Depends(require_configured)) -> None:
-    session = await viewer(request, settings) if settings["repo"]["private"] else None
+async def require_reader(request: Request, response: Response, settings: dict = Depends(require_configured)) -> None:
+    session = await viewer(request, response, settings) if settings["repo"]["private"] else None
     if not can_read(settings, session):
-        raise HTTPException(403, "No access to the documentation repository") if session else HTTPException(401, "Sign in required")
+        raise HTTPException(403, sessions.NO_ACCESS) if session else HTTPException(401, "Sign in with GitHub to read the documentation")
 
 
 def require_unconfigured() -> dict:
@@ -137,7 +150,7 @@ def require_unconfigured() -> dict:
 
 
 @app.get("/api/status")
-async def status(request: Request):
+async def status(request: Request, response: Response) -> dict:
     settings = store.load()
     if not store.configured(settings):
         return {
@@ -147,7 +160,7 @@ async def status(request: Request):
             "installed": bool(settings.get("installation_id")),
         }
     repo = settings["repo"]
-    session = await viewer(request, settings)
+    session = await viewer(request, response, settings)
     return {
         "configured": True,
         "repo": repo["full_name"],
@@ -162,9 +175,9 @@ async def status(request: Request):
 
 
 @app.get("/api/setup/manifest", dependencies=[Depends(require_unconfigured)])
-def setup_manifest(org: str = ""):
+def setup_manifest(org: str = "") -> dict[str, str]:
     state = secrets.token_urlsafe(24)
-    store.update(setup_state=state)
+    db.put("setup", state, True, time.time() + SETUP_TTL)
     return {
         "action": f"{github.creation_url(org.strip() or None)}?state={state}",
         "manifest": json.dumps(github.manifest(config.base_url())),
@@ -172,23 +185,28 @@ def setup_manifest(org: str = ""):
 
 
 @app.get("/api/setup/callback")
-async def setup_callback(code: str, state: str, settings: dict = Depends(require_unconfigured)):
-    if not settings.get("setup_state") or not secrets.compare_digest(state, settings["setup_state"]):
-        raise HTTPException(400, "Invalid setup state")
+async def setup_callback(code: str, state: str, settings: dict = Depends(require_unconfigured)) -> RedirectResponse:
+    """Each state works once: popping it means two callbacks can't both create an app."""
+    if not db.pop("setup", state):
+        raise HTTPException(400, "This setup link expired or was already used, start setup again from the setup page")
     app_credentials = await github.convert_manifest(code)
-    store.update(app=app_credentials, setup_state=None)
+    store.update(app=app_credentials)
     return RedirectResponse(github.install_url(app_credentials), 303)
 
 
+def require_app() -> dict:
+    settings = store.load()
+    if not settings.get("app"):
+        raise HTTPException(400, "Create the GitHub App first, from the setup page")
+    return settings
+
+
 @app.get("/api/setup/installed")
-async def setup_installed(installation_id: int | None = None):
+async def setup_installed(installation_id: int | None = None, settings: dict = Depends(require_app)) -> RedirectResponse:
     """GitHub redirects here after an install or a change of repositories; without an id, the setup page checks again.
     Once Ohara is configured, an admin who added a code repository returns to the website."""
-    settings = store.load()
     if store.configured(settings):
         return RedirectResponse(f"{config.base_path()}/", 303)
-    if not settings.get("app"):
-        raise HTTPException(400, "Create the GitHub App first")
     if installation_id is None:
         # The app is private, so it has at most one installation: on the account that owns it.
         installations = await github.app_installations(settings["app"])
@@ -217,12 +235,12 @@ async def choose_repository(repo: dict) -> None:
 
 def require_installed(settings: dict = Depends(require_unconfigured)) -> dict:
     if not settings.get("app") or not settings.get("installation_id"):
-        raise HTTPException(400, "Install the GitHub App first")
+        raise HTTPException(400, "Install the GitHub App first, from the setup page")
     return settings
 
 
 @app.get("/api/setup/repositories")
-async def setup_repositories(settings: dict = Depends(require_installed)):
+async def setup_repositories(settings: dict = Depends(require_installed)) -> list[dict]:
     """The repositories the app is installed on, for the admin to choose the docs repository."""
     repos = await installed_repos(settings["app"], settings["installation_id"])
     return sorted(({"full_name": r["full_name"], "private": r["private"]} for r in repos), key=lambda r: r["full_name"].lower())
@@ -233,11 +251,11 @@ class Choice(BaseModel):
 
 
 @app.post("/api/setup/repository")
-async def setup_repository(choice: Choice, settings: dict = Depends(require_installed)):
+async def setup_repository(choice: Choice, settings: dict = Depends(require_installed)) -> dict[str, str]:
     repos = await installed_repos(settings["app"], settings["installation_id"])
     repo = next((r for r in repos if r["full_name"] == choice.full_name), None)
     if not repo:
-        raise HTTPException(400, "The app isn't installed on this repository")
+        raise HTTPException(400, "The app isn't installed on this repository: add it to the installation on GitHub, or pick another")
     await choose_repository(repo)
     return {"repo": repo["full_name"]}
 
@@ -250,16 +268,16 @@ def safe_next(path: str) -> str:
 
 
 @app.get("/api/auth/login")
-def login(next: str = "/", mcp: str = "", settings: dict = Depends(require_configured)):
+def login(next: str = "/", mcp: str = "", settings: dict = Depends(require_configured)) -> RedirectResponse:
     """`mcp` carries a pending MCP client authorization, finished by the callback instead of a website session."""
     state = secrets.token_urlsafe(24)
     response = RedirectResponse(github.authorize_url(settings["app"], github.auth_callback_url(config.base_url()), state))
-    set_cookie(response, STATE_COOKIE, json.dumps({"state": state, "next": safe_next(next), "mcp": mcp}), max_age=600)
+    set_cookie(response, STATE_COOKIE, json.dumps({"state": state, "next": safe_next(next), "mcp": mcp}), max_age=SIGN_IN_TTL)
     return response
 
 
 @app.get("/api/auth/callback")
-async def auth_callback(request: Request, state: str, code: str = ""):
+async def auth_callback(request: Request, state: str, code: str = "") -> RedirectResponse:
     """Without a code, the user cancelled on GitHub: return to the page, or deny the MCP client."""
     settings = store.load()
     try:
@@ -267,7 +285,7 @@ async def auth_callback(request: Request, state: str, code: str = ""):
     except ValueError:
         saved = {}
     if not store.configured(settings) or not saved.get("state") or not secrets.compare_digest(state, saved["state"]):
-        raise HTTPException(400, "Invalid sign-in state")
+        raise HTTPException(400, "This sign-in link expired or was already used: sign in again")
     if not code:
         if saved.get("mcp"):
             denied = oauth.complete(saved["mcp"], None, "The user cancelled the GitHub sign-in")
@@ -283,7 +301,7 @@ async def auth_callback(request: Request, state: str, code: str = ""):
         tokens = await github.exchange_code(app_credentials, code, github.auth_callback_url(config.base_url()))
         user = await github.get_user(tokens["access_token"])
     except github.Unauthorized:
-        raise HTTPException(400, "GitHub sign-in failed")
+        raise HTTPException(400, "GitHub sign-in failed: sign in again")
     sid = sessions.create(tokens, user)
     if saved.get("mcp"):
         if not oauth.describe(saved["mcp"]):
@@ -291,7 +309,7 @@ async def auth_callback(request: Request, state: str, code: str = ""):
             raise HTTPException(400, "Authorization request expired, connect again from your coding assistant")
         session = await sessions.current(sid, app_credentials, settings["repo"]["full_name"])
         if not can_read(settings, session):
-            response = RedirectResponse(oauth.complete(saved["mcp"], sid, "No access to the documentation repository"), 303)
+            response = RedirectResponse(oauth.complete(saved["mcp"], sid, sessions.NO_ACCESS), 303)
         else:
             # The user approves the client on the consent page, in this browser only.
             consent = secrets.token_urlsafe(24)
@@ -300,7 +318,7 @@ async def auth_callback(request: Request, state: str, code: str = ""):
             set_cookie(response, CONSENT_COOKIE, consent, max_age=oauth.PENDING_TTL)
     else:
         response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
-        set_cookie(response, SESSION_COOKIE, sid, max_age=30 * 24 * 3600)
+        set_cookie(response, SESSION_COOKIE, sid, max_age=sessions.TTL)
     response.delete_cookie(STATE_COOKIE)
     return response
 
@@ -314,8 +332,8 @@ def pending_consent(request: Request) -> tuple[str, dict]:
 
 
 @app.get("/api/auth/consent")
-def consent_details(request: Request):
-    _, found = pending_consent(request)
+def consent_details(pending: tuple[str, dict] = Depends(pending_consent)) -> dict:
+    _, found = pending
     return oauth.describe(found["request"]) | {"login": found["login"]}
 
 
@@ -324,9 +342,9 @@ class Answer(BaseModel):
 
 
 @app.post("/api/auth/consent")
-def consent_answer(answer: Answer, request: Request):
+def consent_answer(answer: Answer, pending: tuple[str, dict] = Depends(pending_consent)) -> JSONResponse:
     """The consent cookie is SameSite, so only a page on Ohara's own site can approve a client."""
-    consent, found = pending_consent(request)
+    consent, found = pending
     redirect = db.pop("consent", consent) and oauth.complete(
         found["request"], found["session"], None if answer.approve else "The user denied access"
     )
@@ -338,7 +356,7 @@ def consent_answer(answer: Answer, request: Request):
 
 
 @app.post("/api/auth/logout")
-def logout(request: Request):
+def logout(request: Request) -> RedirectResponse:
     sessions.drop(request.cookies.get(SESSION_COOKIE))
     response = RedirectResponse(f"{config.base_path()}/", 303)
     response.delete_cookie(SESSION_COOKIE)
@@ -349,19 +367,19 @@ def logout(request: Request):
 
 
 @app.get("/api/nav", dependencies=[Depends(require_reader)])
-def nav():
+def nav() -> list[dict]:
     root = config.docs_dir()
     return cached_nav(root, root.stat().st_ino) if root.exists() else []
 
 
 @functools.lru_cache(maxsize=1)
-def cached_nav(root, _snapshot: int) -> list[dict]:
+def cached_nav(root: Path, _snapshot: int) -> list[dict]:
     """Each sync swaps in a new snapshot folder, so its inode identifies the snapshot."""
     return docs.build_nav(root)
 
 
 @app.get("/api/page", dependencies=[Depends(require_reader)])
-def page(path: str = ""):
+def page(path: str = "") -> dict:
     found = docs.read_page(config.docs_dir(), path)
     if not found:
         raise HTTPException(404, "Page not found")
@@ -374,11 +392,11 @@ def source_of(page: dict) -> dict | None:
     if not appdocs.synced(page["file"]) or not repo or not path:
         return None
     branch = (appdocs.state(repo) or {}).get("branch") or "HEAD"
-    return {"repo": repo, "path": path, "edit_url": f"https://github.com/{repo}/edit/{branch}/{path}"}
+    return {"repo": repo, "path": path, "edit_url": f"{github.WEB}/{repo}/edit/{branch}/{path}"}
 
 
 @app.get("/api/files/{path:path}", dependencies=[Depends(require_reader)])
-def file(path: str):
+def file(path: str) -> FileResponse:
     found = docs.resolve_file(config.docs_dir(), path)
     if not found:
         raise HTTPException(404, "File not found")
@@ -389,15 +407,14 @@ def file(path: str):
 
 
 @app.post("/api/github/webhook")
-async def webhook(request: Request, background: BackgroundTasks):
+async def webhook(request: Request, background: BackgroundTasks) -> dict:
     """Pushes to the docs repository rebuild the site. Pushes to other repositories the app is
-    installed on flag the pages that cover the changed code, and their merged or closed pull requests
-    merge or close the docs pull request of the same branch."""
+    installed on flag the pages that cover the changed code."""
     settings = store.load()
     body = await request.body()
     secret = (settings.get("app") or {}).get("webhook_secret")
     if not secret or not github.valid_signature(secret, body, request.headers.get("X-Hub-Signature-256")):
-        raise HTTPException(401, "Invalid signature")
+        raise HTTPException(401, "Invalid signature: check the webhook secret of the GitHub App")
     repo = settings.get("repo")
     payload = json.loads(body)
     event = request.headers.get("X-GitHub-Event")
@@ -414,10 +431,6 @@ async def webhook(request: Request, background: BackgroundTasks):
         if event == "push" and payload.get("ref") == f"refs/heads/{source.get('default_branch')}" and payload.get("installation"):
             background.add_task(safe_check_code, payload)
             return {"synced": False, "checked": True}
-        closed = event == "pull_request" and payload.get("action") == "closed" and payload.get("installation")
-        if closed and payload["pull_request"]["base"]["ref"] == source.get("default_branch"):
-            background.add_task(safe_follow_code, payload)
-            return {"synced": False, "followed": True}
         return {"synced": False}
     pushed_default = event == "push" and payload.get("ref") == f"refs/heads/{repo['default_branch']}"
     if pushed_default:
@@ -437,13 +450,14 @@ async def check_code(payload: dict) -> None:
     settings = store.load()
     full_name, before, after = payload["repository"]["full_name"], payload["before"], payload["after"]
     if set(before) == {"0"}:  # a new branch: no previous commit to compare with
-        files = sorted({name for commit in payload.get("commits", []) for key in ("added", "modified", "removed") for name in commit.get(key, [])})
+        commits = payload.get("commits", [])
+        files = sorted({name for commit in commits for key in ("added", "modified", "removed") for name in commit.get(key, [])})
     else:
         token = await github.installation_token(settings["app"], payload["installation"]["id"])
         files = await github.changed_files(token, full_name, before, after)
     if appdocs.needs_sync(full_name, files):
         await safe_sync_app(full_name, after)
-    compare = f"https://github.com/{full_name}/compare/{before[:12]}...{after[:12]}"
+    compare = f"{github.WEB}/{full_name}/compare/{before[:12]}...{after[:12]}"
     flagged = await asyncio.to_thread(freshness.record_push, config.docs_dir(), full_name, files, compare)
     if flagged:
         log.info("code change in %s flagged %s", full_name, ", ".join(flagged))
@@ -454,45 +468,6 @@ async def safe_check_code(payload: dict) -> None:
         await check_code(payload)
     except Exception:
         log.exception("code change check failed")
-
-
-async def follow_code(payload: dict) -> None:
-    """When a code pull request is merged, merge the docs pull request of its branch if no page in it has code
-    owners. When it is closed without merging, close that docs pull request."""
-    settings = store.load()
-    docs_repo = settings["repo"]["full_name"]
-    code = payload["pull_request"]
-    branch = mcp_server.code_branch(payload["repository"]["name"], code["head"]["ref"])
-    if not branch:
-        return
-    token = await github.installation_token(settings["app"], settings["installation_id"])
-    pull = await github.find_pull(token, docs_repo, branch)
-    if not pull:
-        return
-    if not code.get("merged"):
-        await github.comment(token, docs_repo, pull["number"], f"Closed: {code['html_url']} was closed without merging.")
-        await github.close_pull(token, docs_repo, pull["number"])
-        return
-    files = await github.pull_files(token, docs_repo, pull["number"])
-    rules = codeowners.load(config.docs_dir())
-    owned = [file for file in files if codeowners.needs_review(rules, file)]
-    if owned:
-        why = "have code owners and need review" if rules is not None else "need review: the docs repository has no CODEOWNERS file"
-        reason = f"{code['html_url']} was merged, but these files {why}: {', '.join(owned)}"
-    else:
-        refused = await github.merge_pull(token, docs_repo, pull["number"], pull["head"]["sha"])
-        if not refused:
-            log.info("merged %s with %s", pull["html_url"], code["html_url"])
-            return
-        reason = f"{code['html_url']} was merged, but this pull request could not merge: {refused}"
-    await github.comment(token, docs_repo, pull["number"], reason)
-
-
-async def safe_follow_code(payload: dict) -> None:
-    try:
-        await follow_code(payload)
-    except Exception:
-        log.exception("docs pull request follow-up failed")
 
 
 # MCP server
@@ -510,9 +485,9 @@ if (static / "index.html").exists():
     app.mount("/assets", StaticFiles(directory=static / "assets"), name="assets")
 
     @app.get("/{path:path}", include_in_schema=False)
-    def spa(path: str):
+    def spa(path: str) -> Response:
         if path.startswith("api/"):
-            raise HTTPException(404)
+            raise HTTPException(404, "No such API route: check the path")
         candidate = (static / path).resolve()
         if path and candidate.is_relative_to(static.resolve()) and candidate.is_file():
             return FileResponse(candidate)
@@ -533,10 +508,10 @@ class BasePath:
     OAuth discovery stays at the host's root, as clients look for it there (RFC 8414 and RFC 9728).
     """
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         base = config.base_path()
         if scope["type"] != "http" or not base:
             return await self.app(scope, receive, send)
@@ -554,6 +529,4 @@ class BasePath:
         await PlainTextResponse("Not found", 404)(scope, receive, send)
 
 
-AUTH_METADATA = "/.well-known/oauth-authorization-server"
-RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
 app.add_middleware(BasePath)

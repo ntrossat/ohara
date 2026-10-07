@@ -3,7 +3,7 @@ import { Navigate, Route, Routes } from "react-router";
 import { get, type Status } from "./api";
 import Consent from "./Consent";
 import Docs from "./Docs";
-import Gate from "./Gate";
+import Gate, { Unreachable } from "./Gate";
 import Setup from "./Setup";
 
 export default function App() {
@@ -14,7 +14,7 @@ export default function App() {
     get<Status>("/api/status").then(setStatus, () => setFailed(true));
   }, []);
 
-  if (failed) return <Gate title="Ohara can't be reached" body="The server didn't answer. Reload the page in a moment." />;
+  if (failed) return <Unreachable />;
   if (!status) return null;
 
   return (
@@ -34,8 +34,8 @@ export default function App() {
               title={status.user ? "You don't have access" : "Sign in to read the docs"}
               body={
                 status.user
-                  ? `Signed in as ${status.user.login}, who can't read ${status.repo} on GitHub. Ask a repository admin for access, then reload.`
-                  : "Use a GitHub account that can read the repository. Your access follows GitHub: lose it there and you lose it here."
+                  ? `Signed in as ${status.user.login}, who can't read ${status.repo} on GitHub: ask a repository admin for access, then reload.`
+                  : "Use a GitHub account that can read the repository, since your access here follows your access on GitHub."
               }
               action={status.user ? "signOut" : "signIn"}
             />

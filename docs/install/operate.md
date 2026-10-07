@@ -37,17 +37,18 @@ Instances created before some features need a change in the GitHub App's setting
 | Feature | Change |
 |---|---|
 | Proposals | Grant **Contents** and **Pull requests** write permissions, then accept them on the installation |
-| Merging docs with code | Check **Pull request** under **Subscribe to events** |
 
 ## Images
 
-Each push to `main` that passes CI publishes an image to the GitHub Container Registry, `ghcr.io/<owner>/ohara`:
+Each push to `main` and each `v*` tag that passes CI publishes an image to the GitHub Container Registry, `ghcr.io/<owner>/ohara`:
 
 | Tag | Points to |
 |---|---|
 | `main` | The latest commit on `main` |
 | `sha-<commit>` | One commit |
 | `<version>`, `<major>.<minor>`, `latest` | A `v*` release tag |
+
+The repository's `docker-compose.yml` builds the image from source. A Compose file that runs the published image is on the roadmap.
 
 ## Continuous deployment
 
@@ -77,10 +78,9 @@ The repository is chosen once, at setup. To point Ohara to another one:
 | Symptom | Cause and fix |
 |---|---|
 | The website doesn't update after a merge | GitHub can't reach the webhook. Check that `OHARA_URL` is public, and look at **Recent Deliveries** in the app's settings on GitHub. Restarting Ohara also updates the docs |
-| The API or MCP server answers "Ohara is not configured" | Setup didn't finish. Open `OHARA_URL` and complete it |
+| The API or MCP server answers "Ohara is not set up yet" | Setup didn't finish. Open `OHARA_URL` and complete it |
 | Coding assistants can't sign in | MCP sign-in needs an `https://` address or `localhost`. Otherwise, send a GitHub token as `Authorization: Bearer` |
 | A proposal fails with a permissions error | The app lacks write permissions. Grant **Contents** and **Pull requests** write in the app's settings, then accept them on the installation |
-| A docs pull request didn't merge with the code | A file in it has a code owner, or branch protection refused the merge. Ohara leaves a comment on the pull request that explains which |
 | A code repository's docs don't appear under `apps/` | The repository needs a `.ohara.yml`, the app must be installed on it, and a private code repository is never synced into a public docs repository. Ask a coding assistant to call `check_repository` for the reason |
 | Someone still reads the docs after losing access | Access is checked again every 5 minutes, so it ends within 5 minutes |
 

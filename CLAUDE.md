@@ -13,12 +13,12 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 - Frontend dev server: `cd frontend && npm run dev` (proxies `/api` to port 8000)
 - Frontend build and type check: `cd frontend && npm run build`
 - Full app: `make dev` (`docker compose up --build --watch`, rebuilds on code changes, reads `OHARA_URL` from `.env`)
-- CI and CD: `.github/workflows/ci.yml` runs the tests; `cd.yml` publishes the image to `ghcr.io/<owner>/ohara` once CI passes on `main` (tags `main`, `sha-<commit>`) and on `v*` tags (the version and `latest`), then runs the repository variable `DEPLOY_COMMAND`, if set, with `$IMAGE` and the `DEPLOY_TOKEN` secret. Hosting details live only in those settings.
+- CI and CD: `.github/workflows/ci.yml` runs the tests on pull requests, `main`, and `v*` tags; `cd.yml` publishes the image to `ghcr.io/<owner>/ohara` once CI passes on `main` (tags `main`, `sha-<commit>`) or on a `v*` tag (the version and `latest`), then runs the repository variable `DEPLOY_COMMAND`, if set, with `$IMAGE` and the `DEPLOY_TOKEN` secret. Hosting details live only in those settings.
 - Fresh install: `make init` (removes the container, image, and data volume, then runs `make dev`; delete the old GitHub App by hand)
 
 ## Layout
 
-- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the instance settings, `db.py` the SQLite database in the data volume (all state: settings, sessions, OAuth grants, the full-text search index), `mcp_server.py` the MCP server at `/mcp`, `oauth.py` the OAuth sign-in for MCP clients, `freshness.py` page owners, verified dates, and code-change flags, `codeowners.py` which docs files need review, `appdocs.py` the sync of code repositories' docs into `apps/<repo>/` of the docs repository, `appconfig.py` their `.ohara.yml`, which a repository needs to be synced. MCP tools: `list_pages`, `read_page`, `search`, `stale_pages`, `check_repository`, `propose_change`. MCP prompts (`/ohara:<name>` in Claude Code): `init` sets up a project (checks the GitHub App is installed on its repository and opens the installation settings if not, `.mcp.json`, a `CLAUDE.md` section with the guidelines, docs, and workflow, and read permissions for the Ohara tools); `update` proposes doc updates from the project's latest code changes; `review` reviews the project against the guidelines and docs; `ingest` imports existing docs from other tools as pull requests.
+- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the instance settings, `db.py` the SQLite database in the data volume (all state: settings, sessions, OAuth grants, the full-text search index), `mcp_server.py` the MCP server at `/mcp`, `oauth.py` the OAuth sign-in for MCP clients, `freshness.py` page owners, verified dates, and code-change flags, `appdocs.py` the sync of code repositories' docs into `apps/<repo>/` of the docs repository, `appconfig.py` their `.ohara.yml`, which a repository needs to be synced, `config.py` the environment configuration (`OHARA_URL`, its base path, the data directory). MCP tools: `list_pages`, `read_page`, `search`, `stale_pages`, `check_repository`, `propose_change`. MCP prompts (`/ohara:<name>` in Claude Code): `init` sets up a project (checks the GitHub App is installed on its repository and opens the installation settings if not, `.mcp.json`, a `CLAUDE.md` section with the guidelines, docs, and workflow, and read permissions for the Ohara tools); `update` proposes doc updates from the project's latest code changes; `review` reviews the project against the guidelines and docs; `ingest` imports existing docs from other tools as pull requests.
 - `frontend/src/`: React app. `Setup.tsx` is the setup page, `Gate.tsx` the sign-in screen, `Consent.tsx` the page where a user approves an MCP client, `Docs.tsx` the docs reader, `styles.css` the design tokens and styles. The UI follows the brand guidelines, style guide, and UI kit in the `design/` folder of the project's docs repository.
 - The Docker image builds the frontend and serves it from FastAPI. All state lives in the `/data` volume: the docs snapshot and `ohara.db`. Nothing is kept in process memory, apart from caches.
 
@@ -26,9 +26,9 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 
 Ohara is an open-source enterprise documentation manager. AI keeps documentation and engineering guidelines up to date, and a human approves every change.
 
-- **Docs as code:** documentation lives in a configurable GitHub repository. Every change goes through a pull request. Code repositories can keep their own docs and opt in with a `.ohara.yml` listing them (`/ohara:init` writes it with `docs`): Ohara syncs them one way into `apps/<repo>/` of the docs repository on each push, never from a private code repository into a public docs repository. The docs pull request of a code branch merges when the code merges, except for folders with code owners in the docs repository's `CODEOWNERS`, which get their own review.
+- **Docs as code:** documentation lives in a configurable GitHub repository. Every change goes through a pull request. Code repositories can keep their own docs and opt in with a `.ohara.yml` listing them (`/ohara:init` writes it with `docs`): Ohara syncs them one way into `apps/<repo>/` of the docs repository on each push, never from a private code repository into a public docs repository. The docs changes of a code branch go to one docs pull request, which a human reviews and merges.
 - **Access layers:** an HTML UI for reading and configuration, and an MCP server for AI agents and coding assistants.
-- **Roadmap:** an AI chat over the docs, and published releases (a versioned Docker image on each release).
+- **Roadmap:** an AI chat over the docs, and a Compose file that runs the published image instead of building it.
 - **Access control:** the website uses GitHub SSO and mirrors the docs repository's access rights. A public repository means a public website. A private repository requires sign-in, and only users with access to the repository can read the website.
 - **Ingestion:** a Claude agent imports existing docs through MCP (Jira, Confluence, GitHub, Google Drive). It submits them as PRs, with a review for security and prompt injection.
 - **Planned commands:**
@@ -43,7 +43,7 @@ Ohara is an open-source enterprise documentation manager. AI keeps documentation
 - Frontend: React with Vite.
 - Backend: Python with FastAPI.
 - Deployment: Docker Compose, so anyone can self-host on any platform. The address is configurable, and can include a path (such as `/docs`): the backend serves everything under it, and the frontend reads the path from a meta tag the server adds to the page.
-- GitHub integration: one GitHub App, created through the manifest flow from Ohara's setup page, then installed on the docs repository. It handles sign-in, access to the docs repository, merge events that trigger rebuilds, pushes to code repositories (when installed on them) that flag stale pages, merged or closed code pull requests that merge or close the docs pull request of their branch, and the pull requests that MCP clients propose. The app opens those pull requests, so the proposing user can still review and approve them; only users with write access to the repository can propose.
+- GitHub integration: one GitHub App, created through the manifest flow from Ohara's setup page, then installed on the docs repository. It handles sign-in, access to the docs repository, merge events that trigger rebuilds, pushes to code repositories (when installed on them) that flag stale pages, and the pull requests that MCP clients propose. The app opens those pull requests, so the proposing user can still review and approve them; only users with write access to the repository can propose.
 - Access checks: for a private docs repository, the backend re-checks each user's repository access with GitHub every 5 minutes. A user whose access is removed loses the website within 5 minutes. The MCP server applies the same rule. MCP clients sign in through OAuth: Ohara is the authorization server, GitHub sign-in proves the user, the user approves the client on Ohara's consent page, and Ohara issues its own short-lived `oha_` tokens while the GitHub token stays on the server. CI and headless agents can send a GitHub token as `Authorization: Bearer` instead.
 - Docs repository format: plain Markdown files with no config file. The folder tree becomes the site menu, and each page's first heading is its title. Optional front matter sets the order and tracks freshness: `owner`, `verified` (set on every proposed change, so merging verifies the page), and `covers` (`repository:pattern` entries; a push to a covered repository's default branch flags the page until the page changes). Pages unverified for 180 days are stale.
 - Configuration: the domain is the only environment variable in Docker Compose. On first launch, a setup page creates the GitHub App, the admin installs it on the docs repository and the code repositories, then picks the docs repository in Ohara (picked automatically when the app has only one). Settings are saved in a Docker volume.
@@ -51,7 +51,7 @@ Ohara is an open-source enterprise documentation manager. AI keeps documentation
 
 ## Open source
 
-Ohara is an open-source project. Never commit anything specific to one company, deployment, or person: no hosting provider, domain, repository name, or credentials. Make it configurable instead.
+Ohara is an open-source project. Never commit anything specific to one company, deployment, or person: no hosting provider, domain, credentials, or names of repositories other than the project's own. Make it configurable instead.
 
 ## Repositories
 
@@ -81,7 +81,7 @@ Project docs, in `docs/` (synced to `apps/ohara/`):
 - `docs/README.md`: what Ohara is and who it helps, for executives.
 - `docs/concepts.md`: how Ohara works, and a glossary.
 - `docs/install/`: installing, setup, HTTPS, paths, and operating (data, updates, CD, troubleshooting).
-- `docs/configure/`: the docs repository layout, code repositories (covers, merge with code, `.ohara.yml` sync), and access.
+- `docs/configure/`: the docs repository layout, code repositories (covers, docs pull requests from a code branch, `.ohara.yml` sync), and access.
 - `docs/use/`: coding assistants, the `/ohara:*` commands, and the team workflow.
 - `docs/developers/`: architecture, API, development, and customizing.
 

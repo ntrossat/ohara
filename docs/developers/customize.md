@@ -5,11 +5,11 @@ covers: [ntrossat/ohara:frontend/src/styles.css, ntrossat/ohara:backend/ohara/mc
 
 # Customize
 
-Most of Ohara is configured through GitHub, with no code change: the docs repository's layout, `CODEOWNERS`, the app's installation, and `.ohara.yml` in code repositories. This page covers the changes that need code, for a fork or a contribution.
+Most of Ohara is configured through GitHub, with no code change: the docs repository's layout, the app's installation, and `.ohara.yml` in code repositories. This page covers the changes that need code, for a fork or a contribution.
 
 ## Look and feel
 
-The website's design lives in `frontend/src/styles.css`. Its first block defines the design tokens as CSS custom properties:
+The website's design lives in `frontend/src/styles.css`. Its first block defines the design tokens as CSS custom properties, mirroring `design/tokens.css` in the docs repository, with phone sizes under 860px:
 
 | Token | Role |
 |---|---|
@@ -17,7 +17,10 @@ The website's design lives in `frontend/src/styles.css`. Its first block defines
 | `--ink`, `--text`, `--muted` | Titles, body text, secondary text |
 | `--clay`, `--clay-hover`, `--link` | The accent color, for buttons, the current page, and links |
 | `--serif`, `--sans`, `--mono` | Title, interface, and code typefaces |
-| `--radius-*`, `--topbar-height`, `--ease` | Shapes, layout, and motion |
+| `--size-*`, `--space-*` | Type sizes and the 4px spacing scale |
+| `--radius-*`, `--border` | Shapes |
+| `--topbar-height`, `--menu-width`, `--content-width`, `--toc-width`, `--page-max` | Layout |
+| `--ease`, `--duration` | Motion |
 
 Change the tokens to rebrand the whole site. The logo is drawn in `Mark.tsx`. Fonts are bundled with `@fontsource` packages, so the site makes no request to a font service.
 

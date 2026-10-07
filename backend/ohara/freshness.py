@@ -21,14 +21,14 @@ from ohara import db, docs
 
 STALE_AFTER_DAYS = 180
 MAX_CHANGES = 20  # code changes kept per page
-DRIFT_TTL = 365 * 24 * 3600  # flags of deleted pages do not linger
+DRIFT_TTL = 365 * 24 * 3600  # seconds, so flags of deleted pages do not linger
 
 
 def _hash(file: Path) -> str:
     return hashlib.sha256(file.read_bytes()).hexdigest()
 
 
-def _date(value) -> datetime.date | None:
+def _date(value: object) -> datetime.date | None:
     if isinstance(value, datetime.datetime):
         return value.date()
     if isinstance(value, datetime.date):

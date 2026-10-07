@@ -39,7 +39,7 @@ Backend tests mock GitHub with `respx`, so they need no network. `tests/conftest
 
 ## Project layout
 
-```
+```text
 backend/ohara/       FastAPI app, see Architecture
 backend/tests/       pytest tests, one file per area
 frontend/src/        React app
@@ -54,7 +54,7 @@ docker-compose.yml   one service and the data volume
 - Work on a branch, never on `main`, and merge through a pull request.
 - Use [Conventional Commits](https://www.conventionalcommits.org): `feat:`, `fix:`, `docs:`, `ci:`, `chore:`.
 - Keep the README about principles and features. Implementation details go in these docs.
-- Ohara is open source: never commit anything specific to one company, deployment, or person, such as a hosting provider, domain, repository name, or credentials. Make it configurable.
+- Ohara is open source: never commit anything specific to one company, deployment, or person, such as a hosting provider, domain, credentials, or the name of a repository other than its own. Make it configurable.
 - Interface copy follows the design guidelines in the docs repository: plain, direct, calm, no exclamation marks.
 - Update these docs in the same pull request as the code they describe.
 

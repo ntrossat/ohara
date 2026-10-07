@@ -7,7 +7,7 @@ covers: [ntrossat/ohara:backend/ohara/*, ntrossat/ohara:frontend/src/*]
 
 Ohara is one FastAPI process that serves the React website, a JSON API, and an MCP server, and talks to GitHub through one GitHub App. All state is in a data volume.
 
-```
+```text
                  Browser                       MCP client
                     |                               |
                     v                               v
@@ -29,28 +29,32 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | Module | Responsibility |
 |---|---|
 | `main.py` | Routes: setup, sign-in, docs API, the webhook, and the React app. Startup and background tasks |
-| `github.py` | Every GitHub call: the app manifest, installation tokens, repository contents, Git trees and commits, pull requests, user sign-in, webhook signatures |
-| `docs.py` | The snapshot: tarball extraction, navigation, page lookup, and the full-text search index |
+| `github.py` | Every GitHub call, through one shared client with a timeout, keeping only the fields Ohara uses: the app manifest, installation tokens, repository contents, Git trees and commits, pull requests, user sign-in, webhook signatures |
+| `docs.py` | The snapshot: tarball extraction, navigation, page lookup, and the pages it puts in the search index |
 | `freshness.py` | Owners, verified dates, `covers`, stale flags, and front matter edits |
-| `codeowners.py` | Which docs files need review, from `CODEOWNERS` |
 | `appdocs.py` | The sync of code repositories' docs into `apps/<repository>/` |
 | `appconfig.py` | Reading and validating `.ohara.yml` |
 | `mcp_server.py` | MCP tools and prompts, and the bearer-token guard on `/mcp` |
 | `oauth.py` | The OAuth authorization server for MCP clients |
 | `sessions.py` | Sign-in sessions and the 5-minute access check |
 | `store.py` | Instance settings: app credentials and the docs repository |
-| `db.py` | The SQLite database: JSON records by kind and key, with expiry, and the search table |
-| `config.py` | `OHARA_URL`, its path, and the data directory |
+| `db.py` | The SQLite database: JSON records by kind and key, with expiry, and the search table and its queries. No other module runs SQL |
+| `config.py` | All environment configuration: `OHARA_URL`, its path, the data directory, and the React app directory |
 
 ## Frontend
 
 | File | Screen |
 |---|---|
+| `main.tsx` | Loads the fonts and styles, and mounts the app under the path from `<meta name="ohara-base">` |
 | `App.tsx` | Reads `/api/status` and picks the screen |
+| `api.ts` | API types, the base path, and `get`, which reloads the page on 401 or 403 so the sign-in screen shows |
 | `Setup.tsx` | The setup page |
-| `Gate.tsx` | Sign-in and "no access" screens |
+| `Gate.tsx` | Sign-in and "no access" screens, and `Unreachable` when the server doesn't answer |
 | `Consent.tsx` | Approving an MCP client |
-| `Docs.tsx` | The docs reader: menu, page, table of contents, edit link |
+| `Docs.tsx` | The docs reader: menu with a filter, breadcrumbs, page, table of contents, previous and next links, edit link, code blocks with a copy button, and sign out |
+| `nav.ts` | The reading order for previous and next links, and the breadcrumb trail |
+| `links.ts` | Resolves relative Markdown links to site routes and file URLs |
+| `Mark.tsx` | The Ohara logo |
 | `styles.css` | Design tokens and styles |
 
 The server adds `<meta name="ohara-base">` to the page with the path of `OHARA_URL`, so the app works under a path.
@@ -62,8 +66,12 @@ Nothing is kept in process memory apart from caches. `ohara.db` holds JSON recor
 | Kind | Content | Expires |
 |---|---|---|
 | `settings` | App credentials, installation, docs repository | Never |
-| sessions | Signed-in users and their GitHub tokens | 30 days without use |
-| OAuth records | MCP clients, pending sign-ins, token hashes | With the token |
+| `session` | Signed-in users and their GitHub tokens | 30 days without use |
+| `client` | Registered MCP clients, the newest 1,000 kept | Never |
+| `pending`, `code`, `consent` | Pending MCP sign-ins, authorization codes, and consent requests | 10 minutes |
+| `access` | Hashes of `oha_` access tokens | 1 hour |
+| `refresh` | Hashes of refresh tokens | 30 days |
+| `setup` | The `state` of a pending app creation | 10 minutes, or once used |
 | `check` | Cached access checks for GitHub bearer tokens | 5 minutes |
 | `drift` | Stale flags from code changes, per page file | 1 year |
 | `app` | The last sync of each code repository | Never |
@@ -85,19 +93,19 @@ The same runs on each start and on `repository` events, which also refresh the r
 ### Setup
 
 1. Ohara posts a manifest to GitHub with the app's callback URLs, webhook, events, and permissions. The admin confirms on GitHub.
-2. GitHub redirects to `/api/setup/callback`. Ohara checks the `state` it sent and exchanges the code for the app's credentials (ID, slug, client ID and secret, webhook secret, private key).
+2. GitHub redirects to `/api/setup/callback`. Ohara checks the `state` it sent, which works once and for 10 minutes, and exchanges the code for the app's credentials (ID, slug, client ID and secret, webhook secret, private key).
 3. The admin installs the app. GitHub redirects to `/api/setup/installed`, and Ohara saves the installation.
 4. The admin picks the docs repository. Then the setup routes lock.
 
 ### Website sign-in
 
-GitHub OAuth with a random `state` in a short-lived cookie. The callback exchanges the code for a user token and a refresh token, creates a session, and sets the `ohara_session` cookie (HttpOnly, SameSite=Lax).
+GitHub OAuth with a random `state` in a short-lived cookie. The callback exchanges the code for a user token and a refresh token, creates a session, and sets the `ohara_session` cookie. Every Ohara cookie is HttpOnly and SameSite=Lax, and Secure when `OHARA_URL` starts with `https://`. Each use renews the cookie, so a session ends after 30 days without use.
 
 ### MCP sign-in
 
 Ohara is an OAuth authorization server. The client registers at `/register` and sends the user to `/authorize`. The user signs in with GitHub, then approves the client on the consent page. The consent cookie only exists in the browser that signed in, so a link from someone else can't silently hand them a token. The client gets Ohara tokens (`oha_`, 1 hour, refresh 30 days). Each grant is backed by its own session, so the GitHub token stays on the server. Ohara stores only hashes of its tokens, and keeps the newest 1,000 registered clients, since registration is open.
 
-OAuth needs `OHARA_URL` to start with `https://` or to be `localhost`. Otherwise Ohara logs a warning, disables MCP sign-in, and only GitHub tokens work.
+OAuth needs `OHARA_URL` to start with `https://` or to use a loopback address: `localhost`, `127.0.0.1`, or `[::1]`. Otherwise Ohara logs a warning, disables MCP sign-in, and only GitHub tokens work.
 
 ### Access check
 
@@ -107,19 +115,18 @@ To check access, Ohara reads the docs repository with the user's own token. A us
 
 | Token | Belongs to | Used for |
 |---|---|---|
-| Installation token | The app | Downloading docs, reading repositories, committing synced docs, and opening, merging, and closing pull requests |
+| Installation token | The app | Downloading docs, reading repositories, committing synced docs, and opening pull requests |
 | User token | Each user | Checking what that user may read or write. Never leaves the server |
 | `oha_` tokens | Each MCP grant | Calling `/mcp` |
 | GitHub token as bearer | CI and headless agents | Calling `/mcp`, with the same checks as a user token |
 
 ## Proposals
 
-`propose_change` maps each page path to a file, stamps `verified`, sorts the files (docs repository pages by `CODEOWNERS`, synced pages by their `source`), checks the caller's write access to each target repository, then commits on the right branches with the installation token and opens or updates the pull requests. See [API](api.md#mcp-server).
+`propose_change` maps each page path to a file, stamps `verified`, sorts the files (docs repository pages, and synced pages by their `source`), checks the caller's write access to each target repository, then commits on the right branches with the installation token and opens or updates the pull requests. See [API](api.md#mcp-server).
 
 | Branch | Holds |
 |---|---|
-| `<project>/<branch>` | Docs repository pages with no code owner. Merges with the code branch |
-| `<project>/<branch>-review` | Docs repository pages with a code owner |
+| `<project>/<branch>` | Docs repository pages proposed from that code branch |
 | `ohara/<slug>-<random>` | Every docs repository page, when no project and branch are given |
 | `<project>/<branch>` or `ohara/<slug>-<random>` on a code repository | Synced pages of that repository, at their source path |
 

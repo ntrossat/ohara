@@ -59,7 +59,7 @@ In Claude Code, the MCP server's prompts appear as commands:
 
 ## Propose changes
 
-An assistant sends a title, a description, and the full new Markdown of each page. From a code project, it also sends the repository name and the active git branch, so every change from one code branch lands in the same pull requests.
+An assistant sends a title, a description, and the full new Markdown of each page. From a code project, it also sends the repository name and the active git branch, so every change from one code branch lands in the same pull request.
 
 Ohara then:
 
@@ -69,7 +69,7 @@ Ohara then:
 
 | Page | Where the change goes |
 |---|---|
-| A page of the docs repository | A pull request on the docs repository: one that merges with the code, and one for pages that need review |
+| A page of the docs repository | A pull request on the docs repository, one per code branch |
 | A synced page of the current project | Refused: the assistant edits the file in the project instead |
 | A synced page of another code repository | A pull request on that repository |
 | A new page under `apps/` | Refused: new app docs go in the code repository |

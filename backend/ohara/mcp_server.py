@@ -17,6 +17,7 @@ import logging
 import re
 import secrets
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
@@ -30,8 +31,10 @@ from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, Re
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
+from starlette.routing import BaseRoute
+from starlette.types import Receive, Scope, Send
 
-from ohara import appdocs, codeowners, config, db, docs, freshness, github, oauth, sessions, store
+from ohara import appdocs, config, db, docs, freshness, github, oauth, sessions, store
 from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
@@ -125,8 +128,8 @@ class Connection(BaseModel):
 async def check_repository(repository: str, ctx: Context) -> Connection:
     """Check that the Ohara GitHub App is installed on a code repository, given as "owner/name" (from git remote).
 
-    The app must be installed on a code repository for pushes to flag the pages that cover its code, for its
-    merged pull requests to merge their docs pull requests, and for its docs to be synced into the docs repository.
+    The app must be installed on a code repository for pushes to flag the pages that cover its code, and for its
+    docs to be synced into the docs repository.
     When it is not, returns the GitHub page where an admin of the repository's account adds it to the installation.
     When it is, returns the paths whose docs are synced (from the repository's .ohara.yml, none without it) and
     their folder in Ohara, or why they are not synced.
@@ -137,7 +140,7 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
     repository = repository.strip().removesuffix(".git").strip("/")
     settings = store.load()
     installation = await github.get_installation(settings["app"], settings["installation_id"])
-    account = installation["account"]["login"]
+    account = installation["account"]
     if repository.split("/")[0].lower() != account.lower():
         reason = f"The Ohara GitHub App is private to the {account} account, so it can only be installed on {account} repositories."
         return Connection(connected=False, reason=reason)
@@ -173,9 +176,8 @@ async def propose_change(
 
     When the change comes from a code project, pass the project's repository name and its active git branch.
     Ohara then commits on the "project/branch" branch of the docs repository, and adds to its open pull request
-    if there is one. Pages without code owners in the docs repository's CODEOWNERS merge automatically when the
-    code branch is merged; pages with code owners go to a second pull request for review. Returns the pull
-    request URLs: put them in the code pull request's description so its reviewers see the docs changes.
+    if there is one. Returns the pull request URLs: put them in the code pull request's description so its
+    reviewers see the docs changes.
 
     Pages under apps/ are synced from code repositories. A page from the current project can't be proposed: edit
     its source file in the project, in the same change as the code. A page from another code repository becomes
@@ -197,7 +199,9 @@ async def propose_change(
         found = docs.read_page(config.docs_dir(), page.path.strip().strip("/").removesuffix(".md"))
         source_repo, _, source_path = str((found or {}).get("meta", {}).get("source") or "").partition(":")
         if not found or not source_repo or not source_path:
-            raise ToolError(f"{page.path}: pages under {appdocs.APPS}/ are synced from code repositories. Add new pages to the code repository's docs")
+            raise ToolError(
+                f"{page.path}: pages under {appdocs.APPS}/ are synced from code repositories. Add new pages to the code repository's docs"
+            )
         if same_repository(project, source_repo):
             raise ToolError(f"{page.path} lives in this project at {source_path}: edit that file, in the same change as the code")
         elsewhere.setdefault(source_repo, {})[source_path] = freshness.remove_field(markdown, "source")
@@ -207,30 +211,24 @@ async def propose_change(
         login = caller.login or (await github.get_user(caller.github_token))["login"]
         for target in ([repo["full_name"]] if files else []) + list(elsewhere):
             if not await github.user_can_write(caller.github_token, target, login):
-                raise ToolError(f"Proposing changes requires write access to {target}" if target != repo["full_name"] else "Proposing changes requires write access to the docs repository")
+                name = "the docs repository" if target == repo["full_name"] else target
+                raise ToolError(f"Proposing changes requires write access to {name}")
     except github.Unauthorized:
         raise ToolError("Sign in again: the GitHub token is no longer valid")
     signature = f"Proposed through Ohara by @{login}."
     code = code_branch(project, branch)
-    groups = []  # (repository, base, branch, files, footer, note)
-    if code and files:
-        rules = codeowners.load(config.docs_dir())
-        review = {path: text for path, text in files.items() if codeowners.needs_review(rules, path)}
-        auto = {path: text for path, text in files.items() if path not in review}
-        merges = f"Merges automatically when the `{branch.strip()}` branch of {project.strip()} is merged."
-        groups += [(repo["full_name"], repo["default_branch"], code, auto, f"{merges} {signature}", " (merges with the code branch)")]
-        groups += [(repo["full_name"], repo["default_branch"], f"{code}-review", review, signature, "")]
-    elif files:
-        groups.append((repo["full_name"], repo["default_branch"], branch_for(title), files, signature, ""))
+    groups = []  # (repository, base, branch, files, note)
+    if files:
+        groups.append((repo["full_name"], repo["default_branch"], code or branch_for(title), files, ""))
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
         for source_repo, group in elsewhere.items():
             base = (appdocs.state(source_repo) or {}).get("branch") or (await github.get_repo(token, source_repo))["default_branch"]
-            groups.append((source_repo, base, code or branch_for(title), group, signature, f" ({source_repo})"))
+            groups.append((source_repo, base, code or branch_for(title), group, f" ({source_repo})"))
         urls = []
-        for target, base, docs_branch, group, footer, note in groups:
+        for target, base, docs_branch, group, note in groups:
             if group:
-                body = f"{description}\n\n---\n{footer}"
+                body = f"{description}\n\n---\n{signature}"
                 url = await github.open_pull_request(token, target, base, docs_branch, group, title, body)
                 urls.append(url + note)
         return "\n".join(urls)
@@ -300,7 +298,8 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
 3. In .mcp.json at the project root, add the Ohara server so the whole team gets it:
    {"mcpServers": {"ohara": {"type": "http", "url": "{url}/mcp"}}}
 
-4. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an older "## Ohara" section) with:
+4. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an
+   older "## Ohara" section) with:
    - Ohara at {url} is the source of truth for documentation and engineering guidelines.
    - If this project has synced docs (the docs paths in its .ohara.yml): they live in this
      repository, at those paths, and Ohara syncs them. Update them in the same change as the code. Every other
@@ -351,7 +350,8 @@ change to Ohara.
    the code, include it unchanged: merging the proposal marks it verified.
 
 5. Show the user the pages you will change and why. Edit this project's synced docs in the working tree, then send
-   the other pages as one propose_change, with the project's repository name and active git branch. The title names the change, and the description lists each page with what changed in the code. If nothing needs changing, say so
+   the other pages as one propose_change, with the project's repository name and active git branch. The title names
+   the change, and the description lists each page with what changed in the code. If nothing needs changing, say so
    instead.
 
 6. Report the files you edited and the pull request URL.
@@ -444,7 +444,7 @@ _handler = None
 
 
 @asynccontextmanager
-async def run():
+async def run() -> AsyncIterator[None]:
     """Start a fresh MCP transport for the web server's lifetime."""
     global _handler
     # Bearer tokens replace cookies here, so DNS rebinding protection has nothing to guard.
@@ -458,7 +458,7 @@ async def run():
         yield
 
 
-def oauth_routes() -> list:
+def oauth_routes() -> list[BaseRoute]:
     """OAuth discovery, registration, authorization, token and revocation endpoints."""
     try:
         # AuthSettings keeps the issuer without a trailing slash, as clients compare it exactly.
@@ -508,19 +508,20 @@ async def authenticate(token: str, settings: dict) -> Caller | None:
 class App:
     """ASGI app for /mcp. A class, so Starlette routes raw ASGI calls to it."""
 
-    async def __call__(self, scope, receive, send) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         await guarded(scope, receive, send)
 
 
-async def guarded(scope, receive, send) -> None:
+async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
     settings = store.load()
     if not store.configured(settings):
-        return await JSONResponse({"detail": "Ohara is not configured"}, 503)(scope, receive, send)
+        detail = "Ohara is not set up yet: an admin finishes setup on the setup page"
+        return await JSONResponse({"detail": detail}, 503)(scope, receive, send)
     header = dict(scope["headers"]).get(b"authorization", b"").decode()
     token = header[7:].strip() if header[:7].lower() == "bearer " else ""
     caller = await authenticate(token, settings) if token else None
     if (token and not caller) or (settings["repo"]["private"] and not (caller and caller.allowed)):
-        status, detail = (403, "No access to the documentation repository") if caller else (401, "Sign in required")
+        status, detail = (403, sessions.NO_ACCESS) if caller else (401, "Sign in required: connect with an Ohara or GitHub token")
         metadata = build_resource_metadata_url(AnyHttpUrl(oauth.resource_url()))
         headers = {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'} if status == 401 else None
         return await JSONResponse({"detail": detail}, status, headers=headers)(scope, receive, send)

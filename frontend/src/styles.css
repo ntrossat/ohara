@@ -1,8 +1,9 @@
-/* Ohara design tokens: see design/style-guide.md in the docs repository. */
+/* Ohara design tokens: see design/style-guide.md and design/tokens.css in the docs repository. */
 
 :root {
   color-scheme: dark;
 
+  /* Color */
   --bg: #141413;
   --bg-2: #1c1b19;
   --surface-3: #2a2926;
@@ -15,18 +16,63 @@
   --link: #e8916f;
   --on-clay: #141413;
 
+  /* Type */
   --serif: "Newsreader Variable", Georgia, serif;
   --sans: "Manrope Variable", system-ui, sans-serif;
   --mono: "JetBrains Mono Variable", ui-monospace, monospace;
 
+  --size-display: 72px;
+  --size-h1: 60px;
+  --size-h2: 32px;
+  --size-h3: 20px;
+  --size-lead: 19px;
+  --size-body: 17px;
+  --size-ui: 15px;
+  --size-quote: 24px;
+  --size-code: 14px;
+  --size-label: 12px;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-14: 56px;
+  --space-16: 64px;
+  --space-18: 72px;
+  --space-24: 96px;
+
+  /* Shapes */
   --radius-pill: 999px;
   --radius-panel: 14px;
   --radius-item: 10px;
   --radius-code: 6px;
   --border: 1px solid var(--line);
 
+  /* Layout */
   --topbar-height: 72px;
+  --menu-width: 280px;
+  --content-width: 720px;
+  --toc-width: 220px;
+  --page-max: 1440px;
+
+  /* Motion */
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration: 200ms;
+}
+
+@media (max-width: 859.98px) {
+  :root {
+    --size-h1: 44px;
+    --size-h2: 27px;
+    --size-body: 16px;
+    --topbar-height: 64px;
+  }
 }
 
 *,
@@ -43,7 +89,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font: 500 15px/1.5 var(--sans);
+  font: 500 var(--size-ui) / 1.5 var(--sans);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -72,6 +118,15 @@ pre {
   font-variant-ligatures: none;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -87,7 +142,7 @@ pre {
   gap: 10px;
   min-height: 44px;
   color: var(--ink);
-  font: 600 15px var(--sans);
+  font: 600 var(--size-ui) var(--sans);
   letter-spacing: 0.06em;
 }
 
@@ -116,17 +171,17 @@ pre {
 .button {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   min-height: 48px;
-  padding: 0 24px;
+  padding: 0 var(--space-6);
   border: 0;
   border-radius: var(--radius-pill);
   background: var(--clay);
   color: var(--on-clay);
-  font: 600 15px var(--sans);
+  font: 600 var(--size-ui) var(--sans);
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.2s var(--ease);
+  transition: background var(--duration) var(--ease);
 }
 
 .button:hover {
@@ -136,13 +191,17 @@ pre {
 
 .button:disabled {
   opacity: 0.6;
+  cursor: default;
+}
+
+.button[aria-busy="true"] {
   cursor: progress;
 }
 
 .button.secondary {
+  border: var(--border);
   background: transparent;
   color: var(--muted);
-  box-shadow: inset 0 0 0 1px var(--line);
   font-weight: 500;
 }
 
@@ -152,7 +211,7 @@ pre {
 
 .button.small {
   min-height: 36px;
-  padding: 0 16px;
+  padding: 0 var(--space-4);
   font-size: 14px;
 }
 
@@ -165,7 +224,7 @@ pre {
   border: 0;
   background: none;
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
   cursor: pointer;
 }
 
@@ -178,10 +237,10 @@ pre {
 .status-line {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   margin: 0;
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
 }
 
 .status-line::before,
@@ -194,13 +253,13 @@ pre {
 }
 
 .display {
-  margin: 24px 0 20px;
-  font: 300 clamp(44px, 6vw, 76px) / 1 var(--serif);
+  margin: var(--space-6) 0 var(--space-5);
+  font: 300 clamp(64px, 6vw, 76px) / 1 var(--serif);
   letter-spacing: -0.025em;
 }
 
 .error {
-  color: var(--link);
+  color: var(--ink);
   font-weight: 600;
 }
 
@@ -211,52 +270,52 @@ pre {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 64px;
-  padding: 24px clamp(20px, 5.5vw, 80px) clamp(48px, 8vh, 72px);
+  gap: var(--space-16);
+  padding: var(--space-6) clamp(var(--space-5), 5.5vw, var(--space-16)) clamp(var(--space-12), 8vh, var(--space-18));
 }
 
 .gate-body {
-  max-width: 720px;
+  max-width: var(--content-width);
 }
 
 .gate-text,
 .setup-text {
   margin: 0;
   color: var(--muted);
-  font: 400 18px/1.6 var(--sans);
+  font: 400 var(--size-lead) / 1.6 var(--sans);
 }
 
 .gate-text {
   max-width: 520px;
-  margin-bottom: 40px;
+  margin-bottom: var(--space-10);
 }
 
 .gate-actions,
 .setup-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 /* Setup */
 
 .setup {
   min-height: 100vh;
-  padding: 24px clamp(20px, 5.5vw, 80px) 96px;
+  padding: var(--space-6) clamp(var(--space-5), 5.5vw, var(--space-16)) var(--space-24);
 }
 
 .setup-grid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: clamp(48px, 7vw, 96px);
+  gap: clamp(var(--space-12), 7vw, var(--space-24));
   align-items: start;
   max-width: 1280px;
-  margin-top: clamp(48px, 10vh, 96px);
+  margin-top: clamp(var(--space-12), 10vh, var(--space-24));
 }
 
 .notice {
-  margin: 32px 0 0;
-  padding: 16px 20px;
+  margin: var(--space-8) 0 0;
+  padding: var(--space-4) var(--space-5);
   border: var(--border);
   border-radius: var(--radius-panel);
   background: var(--bg-2);
@@ -267,7 +326,7 @@ pre {
 
 .notice code {
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--size-code);
 }
 
 .steps {
@@ -279,7 +338,7 @@ pre {
 
 .steps li {
   display: flex;
-  gap: 24px;
+  gap: var(--space-6);
   padding: 28px 0;
   border-bottom: var(--border);
   color: var(--muted);
@@ -293,8 +352,8 @@ pre {
 .step-number {
   flex: none;
   width: 32px;
-  padding-top: 12px;
-  font: 400 12px var(--mono);
+  padding-top: var(--space-3);
+  font: 400 var(--size-label) var(--mono);
 }
 
 .steps li.current .step-number {
@@ -303,7 +362,7 @@ pre {
 
 .steps h2 {
   margin: 0 0 6px;
-  font: 400 32px/1.1 var(--serif);
+  font: 400 var(--size-h2) / 1.1 var(--serif);
   letter-spacing: -0.015em;
 }
 
@@ -313,8 +372,8 @@ pre {
 }
 
 .steps p {
-  margin: 0 0 24px;
-  font-size: 16px;
+  margin: 0 0 var(--space-6);
+  font-size: var(--size-body);
 }
 
 .steps li:not(.current) p:last-child {
@@ -323,37 +382,36 @@ pre {
 
 .steps label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
+}
+
+.steps .repo-filter {
+  margin-bottom: 0;
 }
 
 .steps input {
   display: block;
   width: 100%;
   min-height: 48px;
-  margin-bottom: 20px;
-  padding: 0 16px;
+  margin-bottom: var(--space-5);
+  padding: 0 var(--space-4);
   border: var(--border);
   border-radius: var(--radius-panel);
   background: var(--bg-2);
   color: var(--ink);
-  font: 400 14px var(--mono);
+  font: 400 var(--size-code) var(--mono);
 }
 
 .steps input::placeholder {
   color: var(--muted);
 }
 
-.steps input:focus {
-  border-color: var(--clay);
-  outline: none;
-}
-
 .repo-list {
   max-height: 336px;
-  margin-bottom: 24px;
+  margin-bottom: var(--space-6);
   overflow-y: auto;
   border: var(--border);
   border-radius: var(--radius-panel);
@@ -363,13 +421,13 @@ pre {
 .repo-list label {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--space-3);
   min-height: 48px;
   margin: 0;
-  padding: 0 16px;
+  padding: 0 var(--space-4);
   border-bottom: var(--border);
   color: var(--muted);
-  font: 400 14px var(--mono);
+  font: 400 var(--size-code) var(--mono);
   cursor: pointer;
 }
 
@@ -391,17 +449,16 @@ pre {
 }
 
 .repo-empty {
-  padding: 14px 16px;
+  padding: 14px var(--space-4);
 }
 
 /* Docs layout */
 
-/* A centered frame up to 1440px wide: the menu, then the content. Wider windows get even margins. */
+/* A centered frame up to --page-max wide: the menu, then the content. Wider windows get even margins. */
 .docs {
-  --frame: 1440px;
-  --inset: 20px; /* the frame's edges: the logo and menu on the left, the account and "On this page" on the right */
+  --inset: var(--space-5); /* the frame's edges: the logo and menu on the left, the account on the right */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px minmax(0, calc(var(--frame) - 280px)) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) var(--menu-width) minmax(0, calc(var(--page-max) - var(--menu-width))) minmax(0, 1fr);
   grid-template-rows: var(--topbar-height) 1fr;
   min-height: 100vh;
 }
@@ -413,8 +470,8 @@ pre {
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 0 max(var(--inset), calc((100% - var(--frame)) / 2 + var(--inset)));
+  gap: var(--space-6);
+  padding: 0 max(var(--inset), calc((100% - var(--page-max)) / 2 + var(--inset)));
   border-bottom: var(--border);
   background: var(--bg);
 }
@@ -426,13 +483,13 @@ pre {
 .chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 32px;
   padding: 0 14px;
   border: var(--border);
   border-radius: var(--radius-pill);
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
   text-decoration: none;
   white-space: nowrap;
   overflow: hidden;
@@ -481,7 +538,7 @@ pre {
   align-self: start;
   height: calc(100vh - var(--topbar-height));
   overflow-y: auto;
-  padding: 32px 16px 48px var(--inset);
+  padding: var(--space-8) var(--space-4) var(--space-12) var(--inset);
   border-right: var(--border);
 }
 
@@ -496,8 +553,8 @@ pre {
   align-items: center;
   gap: 10px;
   height: 40px;
-  margin-bottom: 16px;
-  padding: 0 12px;
+  margin-bottom: var(--space-4);
+  padding: 0 var(--space-3);
   border: var(--border);
   border-radius: var(--radius-item);
   background: var(--bg-2);
@@ -505,7 +562,8 @@ pre {
 }
 
 .nav-search:focus-within {
-  border-color: var(--muted);
+  outline: 2px solid var(--clay);
+  outline-offset: 2px;
 }
 
 .nav-search input {
@@ -535,7 +593,7 @@ pre {
 
 .nav-link {
   display: block;
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-item);
   color: var(--muted);
   font-size: 14px;
@@ -558,8 +616,8 @@ pre {
   display: flex;
   align-items: center;
   width: 100%;
-  margin-top: 4px;
-  padding: 0 0 0 4px;
+  margin-top: var(--space-1);
+  padding: 0 0 0 var(--space-1);
   border: 0;
   background: none;
   color: var(--ink);
@@ -570,23 +628,25 @@ pre {
 
 button.nav-folder:hover,
 button.nav-folder:hover .nav-toggle {
-  color: var(--clay-hover);
+  color: var(--ink);
 }
 
 .nav-folder a,
 .nav-folder > span:last-child {
   flex: 1;
-  padding: 8px 8px 8px 0;
+  padding: var(--space-2) var(--space-2) var(--space-2) 0;
   color: var(--ink);
   text-decoration: none;
 }
 
 .nav-folder a:hover {
-  color: var(--clay-hover);
+  color: var(--ink);
 }
 
-.nav-folder a.active {
-  color: var(--clay);
+/* A folder whose index page is open looks like the current menu item. */
+.nav-folder:has(a.active) {
+  border-radius: var(--radius-item);
+  background: var(--bg-2);
 }
 
 .nav-toggle {
@@ -607,7 +667,7 @@ button.nav-folder:hover .nav-toggle {
 }
 
 .nav-toggle svg {
-  transition: transform 0.2s var(--ease);
+  transition: transform var(--duration) var(--ease);
 }
 
 .nav-toggle[aria-expanded="false"] svg,
@@ -637,8 +697,8 @@ button.nav-folder:hover .nav-toggle {
 }
 
 .nav-empty {
-  margin: 8px 0;
-  padding: 0 12px;
+  margin: var(--space-2) 0;
+  padding: 0 var(--space-3);
   color: var(--muted);
   font-size: 14px;
 }
@@ -646,8 +706,8 @@ button.nav-folder:hover .nav-toggle {
 .content {
   grid-column: 3;
   display: flex;
-  gap: 64px;
-  padding: 48px var(--inset) 112px 64px;
+  gap: var(--space-16);
+  padding: var(--space-12) var(--space-16) 112px;
 }
 
 /* Prose */
@@ -655,15 +715,16 @@ button.nav-folder:hover .nav-toggle {
 .prose {
   flex: 1 1 auto;
   min-width: 0;
-  max-width: 720px;
+  max-width: var(--content-width);
   color: var(--text);
-  font: 400 17px/1.75 var(--sans);
+  font: 400 var(--size-body) / 1.75 var(--sans);
 }
 
 .breadcrumb {
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-5);
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
+  text-transform: lowercase;
 }
 
 .breadcrumb a {
@@ -681,7 +742,7 @@ button.nav-folder:hover .nav-toggle {
 
 .prose :is(h1, h2, h3, h4) {
   color: var(--ink);
-  scroll-margin-top: calc(var(--topbar-height) + 24px);
+  scroll-margin-top: calc(var(--topbar-height) + var(--space-6));
 }
 
 .prose h1,
@@ -690,23 +751,23 @@ button.nav-folder:hover .nav-toggle {
 }
 
 .prose h1 {
-  margin: 0 0 16px;
-  font-size: 60px;
+  margin: 0 0 var(--space-4);
+  font-size: var(--size-h1);
   font-weight: 300;
   line-height: 1.02;
   letter-spacing: -0.02em;
 }
 
 .prose h1 + p {
-  margin-bottom: 40px;
+  margin-bottom: var(--space-10);
   color: var(--muted);
-  font-size: 19px;
+  font-size: var(--size-lead);
   line-height: 1.6;
 }
 
 .prose h2 {
-  margin: 56px 0 14px;
-  font-size: 32px;
+  margin: var(--space-14) 0 14px;
+  font-size: var(--size-h2);
   font-weight: 400;
   line-height: 1.1;
   letter-spacing: -0.015em;
@@ -714,23 +775,30 @@ button.nav-folder:hover .nav-toggle {
 
 .prose h3,
 .prose h4 {
-  margin: 40px 0 10px;
-  font-size: 20px;
+  margin: var(--space-10) 0 10px;
+  font-size: var(--size-h3);
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.01em;
 }
 
 .prose h4 {
-  font-size: 17px;
+  font-size: var(--size-body);
 }
 
-.prose p,
+.prose p {
+  margin: 0 0 var(--space-5);
+}
+
+/* Blocks: 20px before (the paragraph above leaves it), 40px after. */
 .prose ul,
 .prose ol,
-.prose blockquote,
 .prose .table-wrap {
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-10);
+}
+
+.prose li > :is(ul, ol) {
+  margin-bottom: 0;
 }
 
 .prose li + li {
@@ -753,14 +821,14 @@ button.nav-folder:hover .nav-toggle {
   border-radius: var(--radius-code);
   background: var(--bg-2);
   color: var(--ink);
-  font-size: 0.82em;
+  font-size: var(--size-code);
 }
 
 .prose blockquote {
-  margin: 32px 0 40px;
+  margin: var(--space-5) 0 var(--space-10);
   padding: 0;
   color: var(--ink);
-  font: italic 300 24px/1.4 var(--serif);
+  font: italic 300 var(--size-quote) / 1.4 var(--serif);
 }
 
 .prose blockquote p {
@@ -774,7 +842,7 @@ button.nav-folder:hover .nav-toggle {
 }
 
 .prose hr {
-  margin: 48px 0;
+  margin: var(--space-12) 0;
   border: 0;
   border-top: var(--border);
 }
@@ -787,7 +855,7 @@ button.nav-folder:hover .nav-toggle {
 .prose input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  margin: 0 12px 0 0;
+  margin: 0 var(--space-3) 0 0;
   vertical-align: -3px;
   accent-color: var(--clay);
 }
@@ -799,7 +867,7 @@ button.nav-folder:hover .nav-toggle {
 .prose table {
   width: 100%;
   border-collapse: collapse;
-  font: 400 15px/1.5 var(--sans);
+  font: 400 var(--size-ui) / 1.5 var(--sans);
 }
 
 .prose th,
@@ -819,7 +887,7 @@ button.nav-folder:hover .nav-toggle {
 /* Code blocks */
 
 .code-block {
-  margin: 0 0 40px;
+  margin: 0 0 var(--space-10);
   border: var(--border);
   border-radius: var(--radius-panel);
   background: var(--bg-2);
@@ -830,7 +898,7 @@ button.nav-folder:hover .nav-toggle {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
+  padding: var(--space-3) var(--space-5);
   border-bottom: var(--border);
 }
 
@@ -839,37 +907,26 @@ button.nav-folder:hover .nav-toggle {
   align-items: center;
   gap: 10px;
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
 }
 
+/* Highlighting: keywords in clay, comments muted, everything else ink. */
 .code-block pre {
   margin: 0;
-  padding: 20px 24px;
+  padding: var(--space-5) var(--space-6);
   overflow-x: auto;
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--size-code);
   line-height: 1.7;
 }
 
-.hljs-keyword,
-.hljs-built_in,
-.hljs-literal,
-.hljs-selector-tag,
-.hljs-meta .hljs-keyword {
+.hljs-keyword {
   color: var(--clay);
 }
 
-.hljs-comment,
-.hljs-quote {
+.hljs-comment {
   color: var(--muted);
   font-style: italic;
-}
-
-.hljs-string,
-.hljs-number,
-.hljs-title,
-.hljs-attr {
-  color: var(--text);
 }
 
 /* Page footer */
@@ -877,10 +934,10 @@ button.nav-folder:hover .nav-toggle {
 .page-footer {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--space-4);
   justify-content: space-between;
   align-items: center;
-  margin-top: 56px;
+  margin-top: var(--space-14);
   padding-top: 28px;
   border-top: var(--border);
 }
@@ -888,29 +945,29 @@ button.nav-folder:hover .nav-toggle {
 .suggest {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   min-height: 44px;
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
   text-decoration: none;
 }
 
 .page-links {
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   margin-left: auto;
 }
 
 .page-link {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 180px;
   padding: 14px 18px;
   border: var(--border);
   border-radius: var(--radius-panel);
   text-decoration: none;
-  transition: background 0.2s var(--ease);
+  transition: background var(--duration) var(--ease);
 }
 
 .page-link:hover {
@@ -923,28 +980,28 @@ button.nav-folder:hover .nav-toggle {
 
 .page-link .label {
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
 }
 
 .page-link .title {
   color: var(--ink);
-  font: 400 20px/1.2 var(--serif);
+  font: 400 20px / 1.2 var(--serif);
 }
 
 /* On this page */
 
 .toc {
-  flex: 0 0 220px;
+  flex: 0 0 var(--toc-width);
   margin-left: auto;
   position: sticky;
-  top: calc(var(--topbar-height) + 48px);
+  top: calc(var(--topbar-height) + var(--space-12));
   align-self: start;
 }
 
 .toc-label {
-  margin: 4px 0 12px;
+  margin: var(--space-1) 0 var(--space-3);
   color: var(--muted);
-  font: 400 12px var(--mono);
+  font: 400 var(--size-label) var(--mono);
 }
 
 .toc ul {
@@ -980,7 +1037,7 @@ button.nav-folder:hover .nav-toggle {
 
 /* Tablets: drop the table of contents */
 
-@media (max-width: 1280px) {
+@media (max-width: 1279.98px) {
   .toc {
     display: none;
   }
@@ -988,11 +1045,7 @@ button.nav-folder:hover .nav-toggle {
 
 /* Phones */
 
-@media (max-width: 860px) {
-  :root {
-    --topbar-height: 64px;
-  }
-
+@media (max-width: 859.98px) {
   .docs {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1007,7 +1060,7 @@ button.nav-folder:hover .nav-toggle {
 
   .topbar {
     gap: 10px;
-    padding: 0 12px 0 16px;
+    padding: 0 var(--space-3) 0 var(--space-4);
   }
 
   .chip,
@@ -1023,7 +1076,7 @@ button.nav-folder:hover .nav-toggle {
     height: auto;
     align-self: stretch;
     display: none;
-    padding: 24px 16px 48px;
+    padding: var(--space-6) var(--space-4) var(--space-12);
     border-right: 0;
     background: var(--bg);
   }
@@ -1037,15 +1090,33 @@ button.nav-folder:hover .nav-toggle {
     overflow: hidden;
   }
 
+  /* Touch targets are at least 44px. */
   .nav-link,
   .nav-folder,
-  .nav-toggle {
+  .nav-toggle,
+  .sidebar-account .button,
+  .breadcrumb a {
     min-height: 44px;
   }
 
   .nav-link {
     display: flex;
     align-items: center;
+  }
+
+  .breadcrumb a {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* The copy button grows into the code bar's padding, so the bar keeps its height. */
+  .text-button {
+    min-height: 44px;
+    margin: calc(-1 * var(--space-2)) 0;
+  }
+
+  .nav-search {
+    height: 44px;
   }
 
   .nav-search kbd {
@@ -1057,28 +1128,20 @@ button.nav-folder:hover .nav-toggle {
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-top: 32px;
-    padding: 20px 12px 0;
+    gap: var(--space-3);
+    margin-top: var(--space-8);
+    padding: var(--space-5) var(--space-3) 0;
     border-top: var(--border);
     color: var(--muted);
     font-size: 14px;
   }
 
   .content {
-    padding: 28px 20px 96px;
+    padding: 28px var(--space-5) var(--space-24);
   }
 
-  .prose {
-    font-size: 16px;
-  }
-
-  .prose h1 {
-    font-size: 44px;
-  }
-
-  .prose h2 {
-    font-size: 27px;
+  .display {
+    font-size: var(--size-h1);
   }
 
   .page-links {

@@ -26,6 +26,11 @@ export default function Gate({ status, title, body, action }: Props) {
   );
 }
 
+/** Shown when the server doesn't answer. */
+export function Unreachable() {
+  return <Gate title="Ohara can't be reached" body="The server didn't answer. Reload the page in a moment." />;
+}
+
 export function GitHubIcon() {
   return (
     <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor">

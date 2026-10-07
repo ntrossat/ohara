@@ -8,8 +8,10 @@ from dataclasses import asdict, dataclass
 
 from ohara import db, github
 
-CHECK_INTERVAL = 300
-TTL = 30 * 24 * 3600
+CHECK_INTERVAL = 300  # seconds between repository access checks
+TTL = 30 * 24 * 3600  # seconds without use before a session ends
+REFRESH_MARGIN = 60  # seconds before expiry when a user token is refreshed
+NO_ACCESS = "No access to the documentation repository: ask an admin for read access to it on GitHub"
 
 
 @dataclass
@@ -82,7 +84,7 @@ async def current(sid: str | None, app: dict, repo: str) -> Session | None:
     now = time.time()
     if now - session.checked_at < CHECK_INTERVAL:
         return session
-    if session.expires_at and now > session.expires_at - 60 and not await _refresh(app, sid, session):
+    if session.expires_at and now > session.expires_at - REFRESH_MARGIN and not await _refresh(app, sid, session):
         drop(sid)
         return None
     try:

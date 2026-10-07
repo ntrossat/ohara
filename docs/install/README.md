@@ -48,9 +48,9 @@ The app asks for these permissions:
 |---|---|
 | Metadata: read | List the repositories and read their visibility |
 | Contents: write | Download the docs, open proposal branches, and commit synced docs |
-| Pull requests: write | Open, merge, and close docs pull requests |
+| Pull requests: write | Open docs pull requests |
 
-It subscribes to `push`, `pull_request`, and `repository` events. The app is private: only the account that created it can install it.
+It subscribes to `push` and `repository` events. The app is private: only the account that created it can install it.
 
 ## Serve Ohara over HTTPS
 
@@ -60,7 +60,7 @@ Put Ohara behind a reverse proxy that terminates TLS and forwards to port `8000`
 
 `OHARA_URL` can include a path, such as `https://acme.com/docs`. Ohara then serves the website, the API, and the MCP server under that path, and redirects the rest of the host there. OAuth discovery for coding assistants stays at the root of the host, where clients look for it: `/.well-known/oauth-authorization-server/docs` and `/.well-known/oauth-protected-resource/docs/mcp`.
 
-To move an existing instance to a path, update the app's settings on GitHub: the callback URL to `OHARA_URL/api/auth/callback` and the webhook URL to `OHARA_URL/api/github/webhook`. Coding assistants reconnect at `OHARA_URL/mcp`.
+To move an existing instance to a path, update the app's settings on GitHub: the callback URL to `OHARA_URL/api/auth/callback`, the Setup URL to `OHARA_URL/api/setup/installed`, and the webhook URL to `OHARA_URL/api/github/webhook`. Coding assistants reconnect at `OHARA_URL/mcp`.
 
 ## Local runs
 
@@ -72,6 +72,8 @@ With `OHARA_URL=http://localhost:8000`, Ohara works for trying it out, with thes
 | Webhooks | GitHub can't reach the address: the docs update when Ohara restarts, and code changes are not flagged or synced |
 | Sign-in for coding assistants | Works on `localhost` |
 | App name | Gets a random suffix, since GitHub App names are unique |
+
+An app created on an address GitHub can't reach has no webhook and no events. To move such an instance to a public address, start over with `make init`, which removes the data and creates a new app; delete the old app on GitHub by hand. You can instead add the webhook URL (`OHARA_URL/api/github/webhook`) and the `push` and `repository` events in the app's settings, but Ohara checks each delivery against the webhook secret it saved when it created the app. If GitHub gave the app no secret, Ohara rejects the deliveries with `401`, and `make init` is the only way.
 
 ## Next steps
 
