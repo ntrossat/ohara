@@ -13,6 +13,7 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 - Frontend dev server: `cd frontend && npm run dev` (proxies `/api` to port 8000)
 - Frontend build and type check: `cd frontend && npm run build`
 - Full app: `make dev` (`docker compose up --build --watch`, rebuilds on code changes, reads `OHARA_URL` from `.env`)
+- CI and CD: `.github/workflows/ci.yml` runs the tests; `cd.yml` publishes the image to `ghcr.io/<owner>/ohara` once CI passes on `main` (tags `main`, `sha-<commit>`) and on `v*` tags (the version and `latest`), then runs the repository variable `DEPLOY_COMMAND`, if set, with `$IMAGE` and the `DEPLOY_TOKEN` secret. Hosting details live only in those settings.
 - Fresh install: `make init` (removes the container, image, and data volume, then runs `make dev`; delete the old GitHub App by hand)
 
 ## Layout

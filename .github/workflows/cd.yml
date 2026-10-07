@@ -1,0 +1,79 @@
+name: CD
+
+# Publishes the Docker image to the GitHub Container Registry once CI passes on main, and on version tags.
+# Then, if the repository sets a DEPLOY_COMMAND variable, runs it to deploy main. The command gets the image
+# as $IMAGE and the DEPLOY_TOKEN secret as $DEPLOY_TOKEN, so each instance keeps its hosting details out of the code.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+
+jobs:
+  image:
+    if: github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: image
+        run: |
+          name="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "tag=sha-$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "image=$name:sha-$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=raw,value=main,enable=${{ github.event_name == 'workflow_run' }}
+            type=raw,value=${{ steps.image.outputs.tag }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: image
+    if: github.event_name == 'workflow_run' && vars.DEPLOY_COMMAND != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - run: bash -euo pipefail -c "$DEPLOY_COMMAND"
+        env:
+          DEPLOY_COMMAND: ${{ vars.DEPLOY_COMMAND }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          IMAGE: ${{ needs.image.outputs.image }}
