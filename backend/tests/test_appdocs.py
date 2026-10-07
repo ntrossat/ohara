@@ -9,6 +9,7 @@ import pytest
 import respx
 
 from ohara import appconfig, appdocs, db, docs, store
+from ohara import config as config_module
 from tests.conftest import REPO
 
 API = "https://api.github.com"
@@ -19,9 +20,13 @@ CODE = f"{API}/repos/acme/api"
 # Config
 
 
-def test_config_defaults_to_the_docs_folder():
-    assert appconfig.parse(None) == ["docs"]
+def test_repositories_without_a_config_file_are_not_synced():
+    assert appconfig.parse(None) == []
+
+
+def test_config_without_a_docs_list_syncs_the_docs_folder():
     assert appconfig.parse("") == ["docs"]
+    assert appconfig.parse("other: 1") == ["docs"]
 
 
 def test_config_lists_paths_and_drops_unsafe_ones():
@@ -33,7 +38,7 @@ def test_config_can_turn_syncing_off():
     assert appconfig.parse("docs: []") == []
 
 
-@pytest.mark.parametrize("text", ["docs: [", "- docs", "docs: docs"])
+@pytest.mark.parametrize("text", ["docs: [", "- docs", "docs: docs", "just text"])
 def test_invalid_config_is_refused(text):
     with pytest.raises(appconfig.Invalid):
         appconfig.parse(text)
@@ -61,7 +66,7 @@ def blob(text):
     return {"content": base64.b64encode(text.encode()).decode()}
 
 
-def mock_sync(code_files, docs_files=None, config=None, private=False, protected=False):
+def mock_sync(code_files, docs_files=None, config="docs:\n  - docs\n", private=False, protected=False):
     """Mock GitHub for a sync of acme/api. Returns the routes that write to the docs repository."""
     respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
     respx.get(CODE).mock(return_value=httpx.Response(200, json={"name": "api", "private": private, "default_branch": "main"}))
@@ -73,6 +78,10 @@ def mock_sync(code_files, docs_files=None, config=None, private=False, protected
     for path, text in code_files.items():
         respx.get(f"{CODE}/git/blobs/sha-{path}").mock(return_value=httpx.Response(200, json=blob(text)))
     current = [{"path": path, "type": "blob", "sha": sha} for path, sha in (docs_files or {}).items()]
+    for path in docs_files or {}:  # the local snapshot mirrors the docs repository
+        file = config_module.docs_dir() / path
+        file.parent.mkdir(parents=True, exist_ok=True)
+        file.write_text("synced")
     respx.get(f"{DOCS}/git/trees/main").mock(return_value=httpx.Response(200, json={"tree": current}))
     blobs = respx.post(f"{DOCS}/git/blobs").mock(return_value=httpx.Response(201, json={"sha": "new-blob"}))
     respx.get(f"{DOCS}/git/ref/heads/main").mock(return_value=httpx.Response(200, json={"object": {"sha": "head"}}))
@@ -279,6 +288,7 @@ def push(repo, files, sender="ada", before="a" * 40):
 
 def test_push_that_changes_docs_syncs_them(client, configure, calls):
     configure(private=False)
+    db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
     from ohara import main
 
     asyncio.run(main.check_code(push("acme/api", ["docs/a.md"], before="0" * 40)))
@@ -339,3 +349,56 @@ def test_an_empty_repository_has_no_docs(configure):
     respx.get(url__regex=rf"{CODE}/git/trees/.*").mock(return_value=httpx.Response(409))
     run_sync()
     assert written(routes) == {"apps/api/a.md": None}
+
+
+@respx.mock
+def test_sync_without_a_config_file_syncs_nothing(configure):
+    configure(private=False)
+    routes = mock_sync({"docs/a.md": "# A"}, config=None)
+    run_sync()
+    assert not routes["trees"].called
+    assert appdocs.state("acme/api")["paths"] == []
+
+
+@respx.mock
+def test_removing_the_config_file_removes_the_synced_folder(configure):
+    configure(private=False)
+    routes = mock_sync({"docs/a.md": "# A"}, {"apps/api/a.md": "sha"}, config=None)
+    run_sync()
+    assert written(routes) == {"apps/api/a.md": None}
+
+
+def test_a_push_without_a_config_file_does_not_sync(client, configure, calls):
+    configure(private=False)
+    from ohara import main
+
+    asyncio.run(main.check_code(push("acme/web", ["docs/a.md"], before="0" * 40)))
+    assert calls == []
+
+
+def test_backfill_syncs_every_repository_and_removes_orphan_folders(configure, data_dir, monkeypatch):
+    configure(private=False)
+    from ohara import main
+
+    for name in ("api", "gone"):
+        (data_dir / "docs" / "apps" / name).mkdir(parents=True)
+    seen = []
+
+    async def token(*_):
+        return "ghs_app"
+
+    async def repos(_):
+        return [{"full_name": REPO, "name": "handbook"}, {"full_name": "acme/api", "name": "api"}, {"full_name": "acme/web", "name": "web"}]
+
+    async def sync(_, full_name, ref=None):
+        seen.append(("sync", full_name))
+
+    async def remove(_, full_name):
+        seen.append(("remove", full_name))
+
+    monkeypatch.setattr(main.github, "installation_token", token)
+    monkeypatch.setattr(main.github, "installation_repos", repos)
+    monkeypatch.setattr(main.appdocs, "sync", sync)
+    monkeypatch.setattr(main.appdocs, "remove", remove)
+    asyncio.run(main.backfill())
+    assert seen == [("sync", "acme/api"), ("sync", "acme/web"), ("remove", "acme/gone")]

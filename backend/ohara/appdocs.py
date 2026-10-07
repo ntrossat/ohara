@@ -4,7 +4,7 @@ The code repository is the source of truth: each sync replaces the whole apps/<r
 renames, deletions and hand edits made in the docs repository are all overwritten. Each synced page gets a
 `source` front matter field ("owner/repo:path") that points to its file in the code repository.
 
-Which files are synced comes from the code repository's `.ohara.yml` (see appconfig.py). A private code
+A code repository opts in with a `.ohara.yml`, which lists the files to sync (see appconfig.py). A private code
 repository is never synced into a public docs repository: the website would publish its docs.
 """
 
@@ -13,7 +13,7 @@ import hashlib
 import logging
 import posixpath
 
-from ohara import appconfig, db, freshness, github
+from ohara import appconfig, config, db, freshness, github
 
 APPS = "apps"
 TYPES = (".md", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp")
@@ -85,6 +85,9 @@ async def sync(settings: dict, full_name: str, ref: str | None = None) -> str | 
                 text = freshness.set_field(data.decode(errors="replace"), "source", f'"{full_name}:{source}"')
                 data = text.encode()
             wanted[f"{folder(name)}/{target}"] = data
+        if not wanted and not (config.docs_dir() / folder(name)).exists():  # nothing to sync, and nothing to remove
+            db.put("app", full_name.lower(), record)
+            return None
         current = {
             entry["path"]: entry["sha"]
             for entry in await github.get_tree(token, docs_repo["full_name"], docs_repo["default_branch"])
@@ -100,6 +103,13 @@ async def sync(settings: dict, full_name: str, ref: str | None = None) -> str | 
         if not entries:
             return None
         return await commit(token, docs_repo, name, entries, f"docs: sync {full_name}@{ref[:12]}")
+
+
+def orphans(root, names: set[str]) -> list[str]:
+    """The folders under apps/ in the snapshot that belong to no repository on the installation."""
+    apps = root / APPS
+    folders = [entry.name for entry in apps.iterdir() if entry.is_dir()] if apps.is_dir() else []
+    return sorted(name for name in folders if name not in names and not name.startswith("."))
 
 
 async def remove(settings: dict, full_name: str) -> str | None:
@@ -153,5 +163,5 @@ def touched_by_hand(payload: dict, settings: dict) -> list[str]:
 def needs_sync(full_name: str, files: list[str]) -> bool:
     """Whether a push that changed `files` changed the synced docs, from the paths of the last sync."""
     record = state(full_name)
-    paths = record["paths"] if record and not record.get("skipped") else appconfig.DEFAULT
+    paths = record["paths"] if record and not record.get("skipped") else []
     return any(appconfig.matches(paths, posixpath.normpath(file)) for file in files)

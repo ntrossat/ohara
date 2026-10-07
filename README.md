@@ -135,7 +135,7 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. Their own docs (`docs/` by default, or the paths listed under `docs:` in a `.ohara.yml` at the repository root) are synced one way into `apps/<repo>/` of the docs repository on each push. A private code repository is never synced into a public docs repository. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though in code repositories Ohara only reads their docs, which files changed, and which pull requests merged, and opens the pull requests proposed for their docs.
+Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. A repository that opts in with a `.ohara.yml` at its root (`/ohara:init` writes one with `docs:` listing `docs`) has those docs synced one way into `apps/<repo>/` of the docs repository on each push. A private code repository is never synced into a public docs repository. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though in code repositories Ohara only reads their docs, which files changed, and which pull requests merged, and opens the pull requests proposed for their docs.
 
 Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
 

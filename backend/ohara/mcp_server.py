@@ -31,7 +31,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from ohara import appconfig, appdocs, codeowners, config, db, docs, freshness, github, oauth, sessions, store
+from ohara import appdocs, codeowners, config, db, docs, freshness, github, oauth, sessions, store
 from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
@@ -128,8 +128,8 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
     The app must be installed on a code repository for pushes to flag the pages that cover its code, for its
     merged pull requests to merge their docs pull requests, and for its docs to be synced into the docs repository.
     When it is not, returns the GitHub page where an admin of the repository's account adds it to the installation.
-    When it is, returns the paths whose docs are synced (from .ohara.yml, by default docs) and their folder in
-    Ohara, or why they are not synced.
+    When it is, returns the paths whose docs are synced (from the repository's .ohara.yml, none without it) and
+    their folder in Ohara, or why they are not synced.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
@@ -146,7 +146,7 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
     if repository.lower() in repos:
         record = appdocs.state(repository) or {}
         folder = appdocs.folder(record["name"]) if record.get("name") and not record.get("skipped") else ""
-        paths = record["paths"] if record else appconfig.DEFAULT  # not synced yet: Ohara syncs it in the background
+        paths = record.get("paths", [])
         return Connection(connected=True, reason=record.get("skipped") or "", docs=paths, synced_folder=folder)
     reason = f"The Ohara GitHub App is not installed on {repository}."
     return Connection(connected=False, reason=reason, settings_url=installation["html_url"])
@@ -285,13 +285,13 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
    start on Windows) and ask the user to add this repository to the Ohara GitHub App installation, which needs an
    admin of the account. Wait for the user, then call check_repository again. If the user skips, or the result has
    no settings_url, go on and report the reason at the end.
-   Once connected, Ohara syncs this project's docs (docs/ by default) into apps/<repository name>/ on each push to
-   the default branch. If this project keeps its docs elsewhere (such as doc/, documentation/ or README.md), list
-   the folders and files you found and offer to write a .ohara.yml at the project root with them:
+   Once connected, Ohara syncs this project's docs into apps/<repository name>/ on each push to the default
+   branch, but only if the project has a .ohara.yml at its root. If it has none and keeps docs in this repository
+   (such as docs/, doc/, documentation/ or README.md), list them and offer to write .ohara.yml with them, docs/
+   first when it exists:
    docs:
-     - documentation
-     - README.md
-   Write it only if the user agrees.
+     - docs
+   Write it only if the user agrees. Without it, the project's docs stay out of Ohara.
 
 2. Find the relevant pages. Look at this project (README, manifests, languages, frameworks, domain), then use
    list_pages and search, and read the pages that match. Sort them into guidelines (engineering rules that apply
@@ -302,7 +302,7 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
 
 4. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an older "## Ohara" section) with:
    - Ohara at {url} is the source of truth for documentation and engineering guidelines.
-   - If this project has synced docs (the docs paths from check_repository, or .ohara.yml): they live in this
+   - If this project has synced docs (the docs paths in its .ohara.yml): they live in this
      repository, at those paths, and Ohara syncs them. Update them in the same change as the code. Every other
      page lives in Ohara: propose changes to it, never add it to this repository.
    - If not: never add documentation to this repository, propose changes to Ohara instead.

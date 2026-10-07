@@ -562,8 +562,8 @@ def test_check_repository_reports_the_synced_docs(mcp, configure, data_dir):
 
 
 @respx.mock
-def test_check_repository_defaults_to_docs_before_the_first_sync(mcp, configure):
+def test_check_repository_reports_no_docs_before_the_first_sync(mcp, configure):
     configure(private=False)
     mock_installation([REPO, "acme/api"])
     answer = result(call(mcp, "check_repository", token="ghp_1", repository="acme/api"))["structuredContent"]
-    assert answer["connected"] and answer["docs"] == ["docs"] and answer["synced_folder"] == ""
+    assert answer["connected"] and answer["docs"] == [] and answer["synced_folder"] == ""

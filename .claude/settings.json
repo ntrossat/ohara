@@ -4,7 +4,8 @@
       "mcp__ohara__list_pages",
       "mcp__ohara__read_page",
       "mcp__ohara__search",
-      "mcp__ohara__stale_pages"
+      "mcp__ohara__stale_pages",
+      "mcp__ohara__check_repository"
     ]
   }
 }

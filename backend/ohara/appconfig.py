@@ -1,10 +1,11 @@
-"""Which docs of a code repository Ohara syncs into the docs repository, from its optional `.ohara.yml`:
+"""Which docs of a code repository Ohara syncs into the docs repository, from its `.ohara.yml`:
 
     docs:                     # folders and files to sync, from the repository root
       - docs                  # a folder's contents go to the root of apps/<repo>/
       - README.md             # a file goes to the root by its name
 
-Without the file, Ohara syncs `docs/`. An empty list turns syncing off.
+A repository opts in by adding the file: without it, nothing is synced. A file without a `docs` list syncs
+`docs/`, and an empty list syncs nothing.
 """
 
 import posixpath
@@ -12,7 +13,7 @@ import posixpath
 import yaml
 
 FILE = ".ohara.yml"
-DEFAULT = ["docs"]
+DEFAULT = ["docs"]  # when the file has no docs list
 
 
 class Invalid(Exception):
@@ -20,17 +21,19 @@ class Invalid(Exception):
 
 
 def parse(text: str | None) -> list[str]:
-    """The paths to sync. Absolute paths and paths with `..` are dropped."""
+    """The paths to sync, none without a config file. Absolute paths and paths with `..` are dropped."""
     if text is None:
-        return DEFAULT
+        return []
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as error:
         raise Invalid(f"{FILE} is not valid YAML: {error}")
     if data is None:
         return DEFAULT
-    if not isinstance(data, dict) or "docs" not in data:
-        raise Invalid(f"{FILE} needs a docs list")
+    if not isinstance(data, dict):
+        raise Invalid(f"{FILE} must be a mapping with a docs list")
+    if "docs" not in data:
+        return DEFAULT
     entries = data["docs"] or []
     if not isinstance(entries, list):
         raise Invalid(f"{FILE}: docs must be a list of paths")

@@ -52,12 +52,16 @@ async def startup() -> None:
 
 
 async def backfill() -> None:
-    """Sync the docs of the code repositories the app was installed on before Ohara could sync them."""
+    """Sync the docs of every code repository on the installation, so changes to the sync rules apply to all of them,
+    and remove the synced folders of repositories that are no longer on it."""
     settings = store.load()
     token = await github.installation_token(settings["app"], settings["installation_id"])
-    for repo in await github.installation_repos(token):
-        if repo["full_name"] != settings["repo"]["full_name"] and appdocs.state(repo["full_name"]) is None:
-            await appdocs.sync(settings, repo["full_name"])
+    repos = [repo for repo in await github.installation_repos(token) if repo["full_name"] != settings["repo"]["full_name"]]
+    for repo in repos:
+        await appdocs.sync(settings, repo["full_name"])
+    owner = settings["repo"]["full_name"].split("/")[0]
+    for name in appdocs.orphans(config.docs_dir(), {repo["name"] for repo in repos}):
+        await appdocs.remove(settings, f"{owner}/{name}")
 
 
 async def safe_backfill() -> None:
