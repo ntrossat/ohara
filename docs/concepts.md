@@ -4,8 +4,6 @@ order: 1
 
 # How Ohara works
 
-This page explains the ideas behind Ohara. Each section links to the page with the full details.
-
 ## The docs repository
 
 Ohara reads its pages from one GitHub repository of Markdown files, the docs repository. There is no database of pages and no editor: the repository is the source of truth.
