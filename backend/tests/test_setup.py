@@ -28,14 +28,14 @@ def test_local_app_names_differ():
 
 
 @respx.mock
-def test_callback_saves_app_and_returns_to_setup(client, app_credentials):
+def test_callback_saves_app_and_sends_admin_to_install(client, app_credentials):
     client.get("/api/setup/manifest")
     state = store.load()["setup_state"]
     respx.post("https://api.github.com/app-manifests/abc/conversions").mock(
         return_value=httpx.Response(201, json=app_credentials | {"name": "Ohara docs"})
     )
     response = client.get("/api/setup/callback", params={"code": "abc", "state": state})
-    assert response.headers["location"] == "/setup"
+    assert response.headers["location"] == "https://github.com/apps/ohara-docs/installations/new"
     assert store.load()["app"] == app_credentials
     assert (store.path().stat().st_mode & 0o777) == 0o600
 
@@ -71,12 +71,34 @@ def test_install_selects_the_repository_and_syncs(client, app_credentials, data_
 
 
 @respx.mock
-def test_install_on_several_repositories_is_refused(client, app_credentials):
+def test_install_on_several_repositories_asks_for_the_docs_repository(client, app_credentials, data_dir):
     store.save({"app": app_credentials})
-    mock_installation([{"full_name": "a/1"}, {"full_name": "a/2"}])
+    docs = {"full_name": REPO, "private": True, "default_branch": "trunk"}
+    mock_installation([{"full_name": "acme/web", "private": False, "default_branch": "main"}, docs])
     response = client.get("/api/setup/installed", params={"installation_id": 42})
-    assert response.headers["location"] == "/setup?error=one-repository"
+    assert response.headers["location"] == "/setup"
+    assert store.load()["installation_id"] == 42
     assert not store.configured()
+    assert client.get("/api/status").json()["installed"] is True
+
+    assert client.get("/api/setup/repositories").json() == [
+        {"full_name": REPO, "private": True},
+        {"full_name": "acme/web", "private": False},
+    ]
+    assert client.post("/api/setup/repository", json={"full_name": "other/repo"}).status_code == 400
+    respx.get(f"https://api.github.com/repos/{REPO}").mock(return_value=httpx.Response(200, json=docs))
+    respx.get(f"https://api.github.com/repos/{REPO}/tarball/trunk").mock(
+        return_value=httpx.Response(200, content=tarball({"README.md": "# Welcome"}))
+    )
+    assert client.post("/api/setup/repository", json={"full_name": REPO}).json() == {"repo": REPO}
+    assert store.load()["repo"] == docs
+    assert (data_dir / "docs/README.md").read_text() == "# Welcome"
+
+
+def test_choosing_needs_an_installation(client, app_credentials):
+    store.save({"app": app_credentials})
+    assert client.get("/api/setup/repositories").status_code == 400
+    assert client.post("/api/setup/repository", json={"full_name": REPO}).status_code == 400
 
 
 @respx.mock
@@ -85,7 +107,8 @@ def test_check_again_finds_the_installation(client, app_credentials):
     respx.get("https://api.github.com/app/installations").mock(return_value=httpx.Response(200, json=[{"id": 42}]))
     mock_installation([{"full_name": "a/1"}, {"full_name": "a/2"}])
     response = client.get("/api/setup/installed")
-    assert response.headers["location"] == "/setup?error=one-repository"
+    assert response.headers["location"] == "/setup"
+    assert store.load()["installation_id"] == 42
 
 
 @respx.mock
@@ -100,10 +123,17 @@ def test_setup_is_locked_once_configured(client, configure):
     assert client.get("/api/setup/manifest").status_code == 409
     assert client.get("/api/setup/callback", params={"code": "x", "state": "y"}).status_code == 409
     assert client.get("/api/setup/installed", params={"installation_id": 1}).status_code == 409
+    assert client.get("/api/setup/repositories").status_code == 409
+    assert client.post("/api/setup/repository", json={"full_name": REPO}).status_code == 409
 
 
 def test_status_guides_setup(client, app_credentials):
-    assert client.get("/api/status").json() == {"configured": False, "url": "https://docs.example.com", "install_url": None}
+    assert client.get("/api/status").json() == {
+        "configured": False,
+        "url": "https://docs.example.com",
+        "install_url": None,
+        "installed": False,
+    }
     store.save({"app": app_credentials})
     assert client.get("/api/status").json()["install_url"] == "https://github.com/apps/ohara-docs/installations/new"
 

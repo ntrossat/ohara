@@ -1,5 +1,5 @@
 export type Status =
-  | { configured: false; url: string; install_url: string | null }
+  | { configured: false; url: string; install_url: string | null; installed: boolean }
   | {
       configured: true;
       repo: string;

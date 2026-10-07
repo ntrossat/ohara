@@ -1,16 +1,15 @@
-import { useState, type FormEvent } from "react";
-import { useSearchParams } from "react-router";
+import { useEffect, useState, type FormEvent } from "react";
 import { base, get } from "./api";
 import { GitHubIcon } from "./Gate";
 import Mark from "./Mark";
 
-type Props = { url: string; installUrl: string | null };
+type Props = { url: string; installUrl: string | null; installed: boolean };
+type Repository = { full_name: string; private: boolean };
 
-export default function Setup({ url, installUrl }: Props) {
+export default function Setup({ url, installUrl, installed }: Props) {
   const [org, setOrg] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [params] = useSearchParams();
   const opened = location.origin + base;
   const urlMismatch = url !== opened;
 
@@ -58,11 +57,14 @@ export default function Setup({ url, installUrl }: Props) {
         </div>
 
         <ol className="steps">
-          <li className={installUrl ? "done" : "current"}>
+          <li className={installed ? "done" : "current"}>
             <span className="step-number">01</span>
             <div>
-              <h2>Create the GitHub App</h2>
-              <p>GitHub opens with everything filled in. Review it and confirm.</p>
+              <h2>Create and install the GitHub App</h2>
+              <p>
+                GitHub creates the app, then asks where to install it. Pick your docs repository, and the code
+                repositories whose changes should update the docs.
+              </p>
               {!installUrl && (
                 <form onSubmit={createApp}>
                   <label htmlFor="org">Organization that owns the docs repository</label>
@@ -80,23 +82,7 @@ export default function Setup({ url, installUrl }: Props) {
                   {error && <p className="error">{error}</p>}
                 </form>
               )}
-            </div>
-          </li>
-          <li className={installUrl ? "current" : ""}>
-            <span className="step-number">02</span>
-            <div>
-              <h2>Install it on your docs repository</h2>
-              <p>
-                Choose “Only select repositories” and pick the one that holds your docs. Already installed? Open its
-                settings on GitHub to change the repositories, then check again.
-              </p>
-              {params.get("error") === "one-repository" && (
-                <p className="error">
-                  The app is installed on more than one repository. In its settings on GitHub, keep only your docs
-                  repository and save.
-                </p>
-              )}
-              {installUrl && (
+              {installUrl && !installed && (
                 <div className="setup-actions">
                   <a className="button" href={installUrl}>
                     <GitHubIcon /> Install on GitHub
@@ -108,8 +94,100 @@ export default function Setup({ url, installUrl }: Props) {
               )}
             </div>
           </li>
+          <li className={installed ? "current" : ""}>
+            <span className="step-number">02</span>
+            <div>
+              <h2>Choose the docs repository</h2>
+              <p>Ohara reads the docs from it.</p>
+              {installed && installUrl && <RepositoryChoice installUrl={installUrl} />}
+            </div>
+          </li>
         </ol>
       </main>
     </div>
+  );
+}
+
+function RepositoryChoice({ installUrl }: { installUrl: string }) {
+  const [repos, setRepos] = useState<Repository[] | null>(null);
+  const [filter, setFilter] = useState("");
+  const [chosen, setChosen] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    get<Repository[]>("/api/setup/repositories").then(
+      (found) => {
+        setRepos(found);
+        if (found.length === 1) setChosen(found[0].full_name);
+      },
+      () => setError("Ohara couldn't list the app's repositories. Check the server logs, then reload."),
+    );
+  }, []);
+
+  async function choose(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    const response = await fetch(`${base}/api/setup/repository`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name: chosen }),
+    }).catch(() => null);
+    if (response?.ok) {
+      location.assign(`${base}/`);
+    } else {
+      setError("Ohara couldn't use this repository. Check that the app is still installed on it, then try again.");
+      setBusy(false);
+    }
+  }
+
+  if (!repos) return error ? <p className="error">{error}</p> : null;
+  const query = filter.trim().toLowerCase();
+  const shown = repos.filter((repo) => repo.full_name.toLowerCase().includes(query));
+
+  return (
+    <form onSubmit={choose}>
+      {repos.length > 6 && (
+        <input
+          aria-label="Filter repositories"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="Filter repositories"
+          autoComplete="off"
+          spellCheck={false}
+        />
+      )}
+      <div className="repo-list" role="radiogroup" aria-label="Repositories">
+        {shown.map((repo) => (
+          <label key={repo.full_name} className={repo.full_name === chosen ? "chosen" : ""}>
+            <input
+              type="radio"
+              name="repo"
+              value={repo.full_name}
+              checked={repo.full_name === chosen}
+              onChange={() => setChosen(repo.full_name)}
+            />
+            {repo.full_name}
+            {repo.private && (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-label="private">
+                <rect x="3" y="7" width="10" height="7" rx="1.5" />
+                <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+              </svg>
+            )}
+          </label>
+        ))}
+        {!shown.length && <p className="repo-empty">No repository matches.</p>}
+      </div>
+      <div className="setup-actions">
+        <button className="button" disabled={!chosen || busy}>
+          {busy ? "Connecting…" : "Use this repository"}
+        </button>
+        <a className="button secondary" href={installUrl}>
+          Change repositories on GitHub
+        </a>
+      </div>
+      {error && <p className="error">{error}</p>}
+    </form>
   );
 }

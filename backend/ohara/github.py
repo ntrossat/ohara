@@ -121,10 +121,16 @@ async def installation_token(app: dict, installation_id: int) -> str:
 
 
 async def installation_repos(token: str) -> list[dict]:
+    repos, page = [], 1
     async with client(token) as c:
-        r = await c.get(f"{API}/installation/repositories", params={"per_page": 100})
-        r.raise_for_status()
-        return r.json()["repositories"]
+        while True:
+            r = await c.get(f"{API}/installation/repositories", params={"per_page": 100, "page": page})
+            r.raise_for_status()
+            batch = r.json()["repositories"]
+            repos += batch
+            if len(batch) < 100:
+                return repos
+            page += 1
 
 
 async def get_repo(token: str, full_name: str) -> dict:

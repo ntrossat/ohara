@@ -122,7 +122,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 1. Set `OHARA_URL` to the address people will use to open Ohara (see `.env.example`). It can include a path, such as `https://acme.com/docs`.
 2. Run `docker compose up -d`.
-3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository.
+3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository and your code repositories. Then choose the docs repository in Ohara.
 
 Your docs repository holds plain Markdown files. Folders become the menu, and each page's first heading is its title. Optional front matter tracks freshness:
 
@@ -134,7 +134,7 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-To flag pages when code changes, finish setup with only the docs repository, then add the code repositories that `covers` names to the same GitHub App installation. The app can write to every repository it is installed on, though Ohara only reads which files changed in them.
+Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. Add more later in the app's installation settings on GitHub. The app can write to every repository it is installed on, though Ohara only reads which files changed in code repositories and which of their pull requests merged.
 
 Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
 

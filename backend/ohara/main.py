@@ -105,6 +105,7 @@ async def status(request: Request):
             "configured": False,
             "url": config.base_url(),
             "install_url": github.install_url(settings["app"]) if settings.get("app") else None,
+            "installed": bool(settings.get("installation_id")),
         }
     repo = settings["repo"]
     session = await viewer(request, settings)
@@ -137,8 +138,7 @@ async def setup_callback(code: str, state: str, settings: dict = Depends(require
         raise HTTPException(400, "Invalid setup state")
     app_credentials = await github.convert_manifest(code)
     store.update(app=app_credentials, setup_state=None)
-    # Back to the setup page, which says which repository to pick before sending the admin to GitHub.
-    return RedirectResponse(f"{config.base_path()}/setup", 303)
+    return RedirectResponse(github.install_url(app_credentials), 303)
 
 
 @app.get("/api/setup/installed")
@@ -154,13 +154,49 @@ async def setup_installed(installation_id: int | None = None, settings: dict = D
         installation_id = installations[0]["id"]
     else:
         await github.get_installation(settings["app"], installation_id)  # must belong to this app
-    token = await github.installation_token(settings["app"], installation_id)
-    repos = await github.installation_repos(token)
-    if len(repos) != 1:
-        return RedirectResponse(f"{config.base_path()}/setup?error=one-repository", 303)
-    store.update(installation_id=installation_id, repo=github.repo_summary(repos[0]))
+    store.update(installation_id=installation_id)
+    repos = await installed_repos(settings["app"], installation_id)
+    if len(repos) == 1:
+        await choose_repository(repos[0])
+        return RedirectResponse(f"{config.base_path()}/", 303)
+    return RedirectResponse(f"{config.base_path()}/setup", 303)
+
+
+async def installed_repos(app_credentials: dict, installation_id: int) -> list[dict]:
+    token = await github.installation_token(app_credentials, installation_id)
+    return await github.installation_repos(token)
+
+
+async def choose_repository(repo: dict) -> None:
+    store.update(repo=github.repo_summary(repo))
     await safe_sync()
-    return RedirectResponse(f"{config.base_path()}/", 303)
+
+
+def require_installed(settings: dict = Depends(require_unconfigured)) -> dict:
+    if not settings.get("app") or not settings.get("installation_id"):
+        raise HTTPException(400, "Install the GitHub App first")
+    return settings
+
+
+@app.get("/api/setup/repositories")
+async def setup_repositories(settings: dict = Depends(require_installed)):
+    """The repositories the app is installed on, for the admin to choose the docs repository."""
+    repos = await installed_repos(settings["app"], settings["installation_id"])
+    return sorted(({"full_name": r["full_name"], "private": r["private"]} for r in repos), key=lambda r: r["full_name"].lower())
+
+
+class Choice(BaseModel):
+    full_name: str
+
+
+@app.post("/api/setup/repository")
+async def setup_repository(choice: Choice, settings: dict = Depends(require_installed)):
+    repos = await installed_repos(settings["app"], settings["installation_id"])
+    repo = next((r for r in repos if r["full_name"] == choice.full_name), None)
+    if not repo:
+        raise HTTPException(400, "The app isn't installed on this repository")
+    await choose_repository(repo)
+    return {"repo": repo["full_name"]}
 
 
 # Sign-in

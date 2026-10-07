@@ -351,6 +351,49 @@ pre {
   outline: none;
 }
 
+.repo-list {
+  max-height: 336px;
+  margin-bottom: 24px;
+  overflow-y: auto;
+  border: var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--bg-2);
+}
+
+.repo-list label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  margin: 0;
+  padding: 0 16px;
+  border-bottom: var(--border);
+  color: var(--muted);
+  font: 400 14px var(--mono);
+  cursor: pointer;
+}
+
+.repo-list label:last-child {
+  border-bottom: 0;
+}
+
+.repo-list label:hover,
+.repo-list label.chosen {
+  color: var(--ink);
+}
+
+.steps .repo-list input {
+  display: inline;
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--clay);
+}
+
+.repo-empty {
+  padding: 14px 16px;
+}
+
 /* Docs layout */
 
 /* A centered frame up to 1440px wide: the menu, then the content. Wider windows get even margins. */

@@ -19,7 +19,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/setup" element={status.configured ? <Navigate to="/" replace /> : <Setup url={status.url} installUrl={status.install_url} />} />
+      <Route path="/setup" element={status.configured ? <Navigate to="/" replace /> : <Setup url={status.url} installUrl={status.install_url} installed={status.installed} />} />
       <Route path="/oauth/consent" element={status.configured ? <Consent repo={status.repo} /> : <Navigate to="/setup" replace />} />
       <Route
         path="*"
