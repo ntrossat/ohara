@@ -55,6 +55,7 @@ Every piece of documentation is updated by AI and approved by a human.
 - Every change goes through a validation workflow
 - Full history, review, and traceability
 - Docs merge with the code change that updated them, except folders the team guards for review with `CODEOWNERS`
+- Code repositories can keep their own docs next to the code: Ohara syncs them into the documentation repository on each push
 - Configurable repository
 
 ### Freshness
@@ -134,7 +135,7 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though Ohara only reads which files changed in code repositories and which of their pull requests merged.
+Code repositories on the same installation flag the pages whose `covers` name them, and merge their docs pull requests with the code. Their own docs (`docs/` by default, or the paths listed under `docs:` in a `.ohara.yml` at the repository root) are synced one way into `apps/<repo>/` of the docs repository on each push. A private code repository is never synced into a public docs repository. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though in code repositories Ohara only reads their docs, which files changed, and which pull requests merged, and opens the pull requests proposed for their docs.
 
 Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
 

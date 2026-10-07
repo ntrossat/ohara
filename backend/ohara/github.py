@@ -163,6 +163,89 @@ async def changed_files(token: str, full_name: str, before: str, after: str) -> 
     return sorted(files)
 
 
+# App docs sync
+
+
+async def get_file(token: str, full_name: str, path: str, ref: str) -> str | None:
+    """A file's text at `ref`, or None when it doesn't exist."""
+    async with client(token) as c:
+        r = await c.get(f"{API}/repos/{full_name}/contents/{quote(path)}", params={"ref": ref}, headers={"Accept": "application/vnd.github.raw"})
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return r.text
+
+
+async def get_tree(token: str, full_name: str, ref: str) -> list[dict]:
+    """Every file of the repository at `ref`, with its path, mode, blob sha and size. Raises when GitHub can't list
+    them all, so a sync never mistakes a missing file for a deleted one."""
+    async with client(token) as c:
+        r = await c.get(f"{API}/repos/{full_name}/git/trees/{quote(ref)}", params={"recursive": 1})
+        if r.status_code == 409:  # an empty repository
+            return []
+        r.raise_for_status()
+    if r.json().get("truncated"):  # a partial list would delete the files left out
+        raise ValueError(f"{full_name} has too many files to list")
+    return [entry for entry in r.json()["tree"] if entry["type"] == "blob"]
+
+
+async def get_blob(token: str, full_name: str, sha: str) -> bytes:
+    async with client(token) as c:
+        r = await c.get(f"{API}/repos/{full_name}/git/blobs/{sha}")
+        r.raise_for_status()
+    return base64.b64decode(r.json()["content"])
+
+
+async def create_blob(token: str, full_name: str, data: bytes) -> str:
+    async with client(token) as c:
+        r = await c.post(f"{API}/repos/{full_name}/git/blobs", json={"content": base64.b64encode(data).decode(), "encoding": "base64"})
+        r.raise_for_status()
+    return r.json()["sha"]
+
+
+async def commit_tree(token: str, full_name: str, branch: str, entries: list[dict], message: str) -> str | None:
+    """Commit tree `entries` on top of `branch` and move the branch to it. Returns the commit sha, or None
+    when GitHub refuses to move the branch, such as when it is protected."""
+    repo = f"{API}/repos/{full_name}"
+    async with client(token) as c:
+        r = await c.get(f"{repo}/git/ref/heads/{quote(branch)}")
+        r.raise_for_status()
+        parent = r.json()["object"]["sha"]
+        r = await c.get(f"{repo}/git/commits/{parent}")
+        r.raise_for_status()
+        r = await c.post(f"{repo}/git/trees", json={"base_tree": r.json()["tree"]["sha"], "tree": entries})
+        r.raise_for_status()
+        r = await c.post(f"{repo}/git/commits", json={"message": message, "tree": r.json()["sha"], "parents": [parent]})
+        r.raise_for_status()
+        commit = r.json()["sha"]
+        r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": commit})
+        if r.status_code in (403, 409, 422):
+            return None
+        r.raise_for_status()
+    return commit
+
+
+async def open_tree_pull_request(token: str, full_name: str, base: str, branch: str, entries: list[dict], title: str, body: str) -> str:
+    """Commit tree `entries` on `branch`, started again from `base`, and return the URL of its open pull request."""
+    repo = f"{API}/repos/{full_name}"
+    async with client(token) as c:
+        r = await c.get(f"{repo}/git/ref/heads/{quote(base)}")
+        r.raise_for_status()
+        sha = r.json()["object"]["sha"]
+        r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha})
+        if r.status_code == 422:
+            r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True})
+        r.raise_for_status()
+    await commit_tree(token, full_name, branch, entries, title)
+    pull = await find_pull(token, full_name, branch)
+    if pull:
+        return pull["html_url"]
+    async with client(token) as c:
+        r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base})
+        r.raise_for_status()
+        return r.json()["html_url"]
+
+
 # Change proposals
 
 

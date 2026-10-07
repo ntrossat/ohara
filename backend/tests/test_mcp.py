@@ -481,3 +481,89 @@ def test_init_prompt_connects_the_repository(mcp, configure):
     configure(private=False)
     text = result(rpc(mcp, "prompts/get", name="init"))["messages"][0]["content"]["text"]
     assert "check_repository" in text and "settings_url" in text
+
+
+# Synced app docs
+
+CODE_URL = f"{API}/repos/acme/api"
+
+
+def add_synced_page(data_dir):
+    folder = data_dir / "docs" / "apps" / "api"
+    folder.mkdir(parents=True)
+    (folder / "billing.md").write_text('---\nsource: "acme/api:docs/billing.md"\nowner: ada\n---\n\n# Billing')
+    docs.index(data_dir / "docs")
+    from ohara import db
+
+    db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
+
+
+def test_synced_pages_report_their_source(mcp, configure, data_dir):
+    configure(private=False)
+    add_synced_page(data_dir)
+    assert result(call(mcp, "read_page", path="apps/api/billing"))["structuredContent"]["source"] == "acme/api:docs/billing.md"
+    assert result(call(mcp, "read_page", path="guide"))["structuredContent"]["source"] is None
+    listed = result(call(mcp, "list_pages"))["structuredContent"]["result"]
+    assert next(page for page in listed if page["path"] == "apps/api/billing")["source"] == "acme/api:docs/billing.md"
+    found = result(call(mcp, "search", query="billing"))["structuredContent"]["result"]
+    assert found[0]["source"] == "acme/api:docs/billing.md"
+
+
+@respx.mock
+def test_proposal_for_a_synced_page_of_this_project_is_refused(mcp, configure, data_dir):
+    configure(private=False)
+    add_synced_page(data_dir)
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    respx.get(f"{API}/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
+    page = {"path": "apps/api/billing", "markdown": "# Billing v2"}
+    answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page], project="acme/api", branch="b"))
+    assert answer["isError"] and "docs/billing.md" in answer["content"][0]["text"]
+
+
+@respx.mock
+def test_proposal_for_a_new_page_under_apps_is_refused(mcp, configure, data_dir):
+    configure(private=False)
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    page = {"path": "apps/api/new", "markdown": "# New"}
+    answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page]))
+    assert answer["isError"] and "synced from code repositories" in answer["content"][0]["text"]
+
+
+@respx.mock
+def test_proposal_for_a_synced_page_of_another_repository_goes_to_it(mcp, configure, data_dir):
+    configure(private=False)
+    add_synced_page(data_dir)
+    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
+    respx.get(f"{API}/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
+    write = respx.get(CODE_URL).mock(return_value=httpx.Response(200, json={"permissions": {"push": True}}))
+    respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
+    respx.get(f"{CODE_URL}/pulls").mock(return_value=httpx.Response(200, json=[]))
+    respx.get(f"{CODE_URL}/git/ref/heads/main").mock(return_value=httpx.Response(200, json={"object": {"sha": "base"}}))
+    ref = respx.post(f"{CODE_URL}/git/refs").mock(return_value=httpx.Response(201, json={}))
+    respx.get(f"{CODE_URL}/contents/docs/billing.md").mock(return_value=httpx.Response(200, json={"sha": "old"}))
+    put = respx.put(f"{CODE_URL}/contents/docs/billing.md").mock(return_value=httpx.Response(200, json={}))
+    respx.post(f"{CODE_URL}/pulls").mock(return_value=httpx.Response(201, json={"html_url": "https://github.com/acme/api/pull/3"}))
+    page = {"path": "apps/api/billing", "markdown": '---\nsource: "acme/api:docs/billing.md"\nowner: ada\n---\n\n# Billing v2'}
+    answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page], project="web", branch="feat/x"))
+    assert answer["structuredContent"]["result"] == "https://github.com/acme/api/pull/3 (acme/api)"
+    assert write.called and json.loads(ref.calls.last.request.content)["ref"] == "refs/heads/web/feat/x"
+    content = base64.b64decode(json.loads(put.calls.last.request.content)["content"]).decode()
+    today = datetime.date.today().isoformat()
+    assert content == f"---\nowner: ada\nverified: {today}\n---\n\n# Billing v2"
+
+
+@respx.mock
+def test_check_repository_reports_the_synced_docs(mcp, configure, data_dir):
+    configure(private=False)
+    add_synced_page(data_dir)
+    mock_installation([REPO, "acme/api"])
+    answer = result(call(mcp, "check_repository", token="ghp_1", repository="acme/api"))["structuredContent"]
+    assert answer["connected"] and answer["docs"] == ["docs"] and answer["synced_folder"] == "apps/api"
+
+
+@respx.mock
+def test_check_repository_defaults_to_docs_before_the_first_sync(mcp, configure):
+    configure(private=False)
+    mock_installation([REPO, "acme/api"])
+    answer = result(call(mcp, "check_repository", token="ghp_1", repository="acme/api"))["structuredContent"]
+    assert answer["connected"] and answer["docs"] == ["docs"] and answer["synced_folder"] == ""

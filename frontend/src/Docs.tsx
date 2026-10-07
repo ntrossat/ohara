@@ -157,14 +157,14 @@ export default function Docs({ status }: Props) {
                 <footer className="page-footer">
                   <a
                     className="suggest"
-                    href={`${repoUrl}/edit/${status.branch}/${loaded.page.file}`}
+                    href={loaded.page.source?.edit_url ?? `${repoUrl}/edit/${status.branch}/${loaded.page.file}`}
                     target="_blank"
                     rel="noreferrer"
                   >
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
                       <path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z" />
                     </svg>
-                    suggest a change on GitHub
+                    {loaded.page.source ? `suggest a change in ${loaded.page.source.repo}` : "suggest a change on GitHub"}
                   </a>
                   <div className="page-links">
                     {previous && (

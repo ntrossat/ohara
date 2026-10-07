@@ -101,15 +101,28 @@ def record_push(root: Path, repo: str, files: list[str], compare: str) -> list[s
     return flagged
 
 
-VERIFIED_LINE = re.compile(r"^verified:.*$", re.M)
-
-
-def stamp_verified(markdown: str, day: datetime.date) -> str:
-    """Set `verified` in the page's front matter, keeping the rest of it as written."""
-    line = f"verified: {day.isoformat()}"
+def set_field(markdown: str, key: str, value: str) -> str:
+    """Set one front matter field, keeping the rest of the front matter as written."""
+    line = f"{key}: {value}"
+    pattern = re.compile(rf"^{re.escape(key)}:.*$", re.M)
     match = docs.FRONT_MATTER.match(markdown)
     if not match:
         return f"---\n{line}\n---\n\n{markdown}"
     block = match.group(1)
-    block = VERIFIED_LINE.sub(line, block) if VERIFIED_LINE.search(block) else f"{block}\n{line}"
+    block = pattern.sub(lambda _: line, block) if pattern.search(block) else f"{block}\n{line}"
     return f"---\n{block}\n---\n{markdown[match.end():]}"
+
+
+def remove_field(markdown: str, key: str) -> str:
+    """Remove one front matter field, and the front matter when nothing else is left in it."""
+    match = docs.FRONT_MATTER.match(markdown)
+    if not match:
+        return markdown
+    block = re.sub(rf"^{re.escape(key)}:.*(\n|$)", "", match.group(1), flags=re.M).strip("\n")
+    body = markdown[match.end():]
+    return f"---\n{block}\n---\n{body}" if block.strip() else body.lstrip("\n")
+
+
+def stamp_verified(markdown: str, day: datetime.date) -> str:
+    """Set `verified` in the page's front matter, keeping the rest of it as written."""
+    return set_field(markdown, "verified", day.isoformat())

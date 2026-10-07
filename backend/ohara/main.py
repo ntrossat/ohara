@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ohara import codeowners, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
+from ohara import appdocs, codeowners, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
@@ -46,11 +46,46 @@ async def safe_sync() -> None:
         log.exception("sync failed")
 
 
+async def startup() -> None:
+    await safe_sync()
+    await safe_backfill()
+
+
+async def backfill() -> None:
+    """Sync the docs of the code repositories the app was installed on before Ohara could sync them."""
+    settings = store.load()
+    token = await github.installation_token(settings["app"], settings["installation_id"])
+    for repo in await github.installation_repos(token):
+        if repo["full_name"] != settings["repo"]["full_name"] and appdocs.state(repo["full_name"]) is None:
+            await appdocs.sync(settings, repo["full_name"])
+
+
+async def safe_backfill() -> None:
+    try:
+        await backfill()
+    except Exception:
+        log.exception("app docs backfill failed")
+
+
+async def safe_sync_app(full_name: str, ref: str | None = None) -> None:
+    try:
+        await appdocs.sync(store.load(), full_name, ref)
+    except Exception:
+        log.exception("app docs sync of %s failed", full_name)
+
+
+async def safe_remove_app(full_name: str) -> None:
+    try:
+        await appdocs.remove(store.load(), full_name)
+    except Exception:
+        log.exception("removing the app docs of %s failed", full_name)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     if store.configured():
         await asyncio.to_thread(docs.index, config.docs_dir())  # search works even if GitHub is unreachable
-        asyncio.create_task(safe_sync())
+        asyncio.create_task(startup())
     async with mcp_server.run():
         yield
 
@@ -326,7 +361,16 @@ def page(path: str = ""):
     found = docs.read_page(config.docs_dir(), path)
     if not found:
         raise HTTPException(404, "Page not found")
-    return {key: found[key] for key in ("title", "file", "markdown")}
+    return {key: found[key] for key in ("title", "file", "markdown")} | {"source": source_of(found)}
+
+
+def source_of(page: dict) -> dict | None:
+    """Where a synced page lives in its code repository, for the website's edit link."""
+    repo, _, path = str(page["meta"].get("source") or "").partition(":")
+    if not appdocs.synced(page["file"]) or not repo or not path:
+        return None
+    branch = (appdocs.state(repo) or {}).get("branch") or "HEAD"
+    return {"repo": repo, "path": path, "edit_url": f"https://github.com/{repo}/edit/{branch}/{path}"}
 
 
 @app.get("/api/files/{path:path}", dependencies=[Depends(require_reader)])
@@ -353,6 +397,12 @@ async def webhook(request: Request, background: BackgroundTasks):
     repo = settings.get("repo")
     payload = json.loads(body)
     event = request.headers.get("X-GitHub-Event")
+    if repo and event == "installation_repositories" and payload.get("installation", {}).get("id") == settings.get("installation_id"):
+        for added in payload.get("repositories_added", []):
+            background.add_task(safe_sync_app, added["full_name"])
+        for removed in payload.get("repositories_removed", []):
+            background.add_task(safe_remove_app, removed["full_name"])
+        return {"synced": False, "apps": True}
     source = payload.get("repository") or {}
     if not repo or not source.get("full_name"):
         return {"synced": False}
@@ -366,14 +416,20 @@ async def webhook(request: Request, background: BackgroundTasks):
             return {"synced": False, "followed": True}
         return {"synced": False}
     pushed_default = event == "push" and payload.get("ref") == f"refs/heads/{repo['default_branch']}"
+    if pushed_default:
+        for full_name in appdocs.touched_by_hand(payload, settings):
+            background.add_task(safe_sync_app, full_name)
     if pushed_default or event == "repository":
         background.add_task(safe_sync)
+        if event == "repository" and payload.get("action") == "publicized":
+            for full_name in db.all("app"):  # private code repositories must leave the now public docs
+                background.add_task(safe_sync_app, full_name)
         return {"synced": True}
     return {"synced": False}
 
 
 async def check_code(payload: dict) -> None:
-    """Flag the docs pages that cover code changed by a push."""
+    """Sync the app docs a push changed, and flag the docs pages that cover the changed code."""
     settings = store.load()
     full_name, before, after = payload["repository"]["full_name"], payload["before"], payload["after"]
     if set(before) == {"0"}:  # a new branch: no previous commit to compare with
@@ -381,6 +437,8 @@ async def check_code(payload: dict) -> None:
     else:
         token = await github.installation_token(settings["app"], payload["installation"]["id"])
         files = await github.changed_files(token, full_name, before, after)
+    if appdocs.needs_sync(full_name, files):
+        await safe_sync_app(full_name, after)
     compare = f"https://github.com/{full_name}/compare/{before[:12]}...{after[:12]}"
     flagged = await asyncio.to_thread(freshness.record_push, config.docs_dir(), full_name, files, compare)
     if flagged:

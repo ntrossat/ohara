@@ -31,7 +31,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 
-from ohara import codeowners, config, db, docs, freshness, github, oauth, sessions, store
+from ohara import appconfig, appdocs, codeowners, config, db, docs, freshness, github, oauth, sessions, store
 from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
@@ -55,7 +55,11 @@ def list_pages() -> list[dict]:
     def walk(nodes: list[dict], parents: list[str]) -> None:
         for node in nodes:
             if node["path"] is not None:
-                pages.append({"path": node["path"], "title": " / ".join([*parents, node["title"]])})
+                page = {"path": node["path"], "title": " / ".join([*parents, node["title"]])}
+                found = docs.read_page(root, node["path"]) if node["path"].startswith(f"{appdocs.APPS}/") else None
+                if found and found["meta"].get("source"):
+                    page["source"] = str(found["meta"]["source"])
+                pages.append(page)
             walk(node["children"], [*parents, node["title"]])
 
     walk(docs.build_nav(root) if root.exists() else [], [])
@@ -69,6 +73,7 @@ class Page(BaseModel):
     verified: str | None
     covers: list[str]
     stale: list[str]
+    source: str | None = None
 
 
 @server.tool()
@@ -77,13 +82,15 @@ def read_page(path: str) -> Page:
 
     Also returns the page's owner, the date a human last verified it, the code it covers ("owner/repo:pattern"),
     and why it may be stale. Keep the owner and covers in the front matter when proposing a change to the page.
-    Tell the user when a page you rely on is stale.
+    Tell the user when a page you rely on is stale. Pages under apps/ are synced from code repositories: their
+    source ("owner/repo:path") is the file to edit, in that repository.
     """
     root = config.docs_dir()
     found = docs.read_page(root, path)
     if not found:
         raise ToolError(f"Page not found: {path}")
-    return Page(title=found["title"], markdown=found["markdown"], **freshness.status(root, found))
+    source = found["meta"].get("source") if appdocs.synced(found["file"]) else None
+    return Page(title=found["title"], markdown=found["markdown"], source=source and str(source), **freshness.status(root, found))
 
 
 @server.tool()
@@ -94,6 +101,8 @@ def search(query: str) -> list[dict]:
     for result in results:
         found = docs.read_page(root, result["path"])
         result["stale"] = freshness.status(root, found)["stale"] if found else []
+        if found and appdocs.synced(found["file"]) and found["meta"].get("source"):
+            result["source"] = str(found["meta"]["source"])
     return results
 
 
@@ -108,15 +117,19 @@ class Connection(BaseModel):
     connected: bool
     reason: str = ""
     settings_url: str = ""
+    docs: list[str] = []  # the paths synced into apps/<repo>/
+    synced_folder: str = ""
 
 
 @server.tool()
 async def check_repository(repository: str, ctx: Context) -> Connection:
     """Check that the Ohara GitHub App is installed on a code repository, given as "owner/name" (from git remote).
 
-    The app must be installed on a code repository for pushes to flag the pages that cover its code, and for its
-    merged pull requests to merge their docs pull requests. When it is not, returns the GitHub page where an
-    admin of the repository's account adds it to the installation.
+    The app must be installed on a code repository for pushes to flag the pages that cover its code, for its
+    merged pull requests to merge their docs pull requests, and for its docs to be synced into the docs repository.
+    When it is not, returns the GitHub page where an admin of the repository's account adds it to the installation.
+    When it is, returns the paths whose docs are synced (from .ohara.yml, by default docs) and their folder in
+    Ohara, or why they are not synced.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
@@ -131,7 +144,10 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
     token = await github.installation_token(settings["app"], settings["installation_id"])
     repos = {repo["full_name"].lower() for repo in await github.installation_repos(token)}
     if repository.lower() in repos:
-        return Connection(connected=True)
+        record = appdocs.state(repository) or {}
+        folder = appdocs.folder(record["name"]) if record.get("name") and not record.get("skipped") else ""
+        paths = record["paths"] if record else appconfig.DEFAULT  # not synced yet: Ohara syncs it in the background
+        return Connection(connected=True, reason=record.get("skipped") or "", docs=paths, synced_folder=folder)
     reason = f"The Ohara GitHub App is not installed on {repository}."
     return Connection(connected=False, reason=reason, settings_url=installation["html_url"])
 
@@ -160,49 +176,77 @@ async def propose_change(
     if there is one. Pages without code owners in the docs repository's CODEOWNERS merge automatically when the
     code branch is merged; pages with code owners go to a second pull request for review. Returns the pull
     request URLs: put them in the code pull request's description so its reviewers see the docs changes.
+
+    Pages under apps/ are synced from code repositories. A page from the current project can't be proposed: edit
+    its source file in the project, in the same change as the code. A page from another code repository becomes
+    a pull request on that repository. New pages under apps/ are refused: add them to the code repository's docs.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
         raise ToolError("Sign in required: connect with a GitHub token that can write to the docs repository")
     settings = store.load()
     repo = settings["repo"]
+    today = datetime.date.today()
+    files, elsewhere = {}, {}  # docs repository files, and code repository -> its files
+    for page in pages:
+        file = file_for(page.path)
+        markdown = freshness.stamp_verified(page.markdown, today)
+        if not appdocs.synced(file):
+            files[file] = markdown
+            continue
+        found = docs.read_page(config.docs_dir(), page.path.strip().strip("/").removesuffix(".md"))
+        source_repo, _, source_path = str((found or {}).get("meta", {}).get("source") or "").partition(":")
+        if not found or not source_repo or not source_path:
+            raise ToolError(f"{page.path}: pages under {appdocs.APPS}/ are synced from code repositories. Add new pages to the code repository's docs")
+        if same_repository(project, source_repo):
+            raise ToolError(f"{page.path} lives in this project at {source_path}: edit that file, in the same change as the code")
+        elsewhere.setdefault(source_repo, {})[source_path] = freshness.remove_field(markdown, "source")
+    if not files and not elsewhere:
+        raise ToolError("No pages to change")
     try:
         login = caller.login or (await github.get_user(caller.github_token))["login"]
-        can_write = await github.user_can_write(caller.github_token, repo["full_name"], login)
+        for target in ([repo["full_name"]] if files else []) + list(elsewhere):
+            if not await github.user_can_write(caller.github_token, target, login):
+                raise ToolError(f"Proposing changes requires write access to {target}" if target != repo["full_name"] else "Proposing changes requires write access to the docs repository")
     except github.Unauthorized:
         raise ToolError("Sign in again: the GitHub token is no longer valid")
-    if not can_write:
-        raise ToolError("Proposing changes requires write access to the docs repository")
-    today = datetime.date.today()
-    files = {file_for(page.path): freshness.stamp_verified(page.markdown, today) for page in pages}
-    if not files:
-        raise ToolError("No pages to change")
     signature = f"Proposed through Ohara by @{login}."
     code = code_branch(project, branch)
-    if code:
+    groups = []  # (repository, base, branch, files, footer, note)
+    if code and files:
         rules = codeowners.load(config.docs_dir())
         review = {path: text for path, text in files.items() if codeowners.needs_review(rules, path)}
         auto = {path: text for path, text in files.items() if path not in review}
         merges = f"Merges automatically when the `{branch.strip()}` branch of {project.strip()} is merged."
-        groups = [(code, auto, f"{merges} {signature}", " (merges with the code branch)"), (f"{code}-review", review, signature, "")]
-    else:
-        groups = [(branch_for(title), files, signature, "")]
+        groups += [(repo["full_name"], repo["default_branch"], code, auto, f"{merges} {signature}", " (merges with the code branch)")]
+        groups += [(repo["full_name"], repo["default_branch"], f"{code}-review", review, signature, "")]
+    elif files:
+        groups.append((repo["full_name"], repo["default_branch"], branch_for(title), files, signature, ""))
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
+        for source_repo, group in elsewhere.items():
+            base = (appdocs.state(source_repo) or {}).get("branch") or (await github.get_repo(token, source_repo))["default_branch"]
+            groups.append((source_repo, base, code or branch_for(title), group, signature, f" ({source_repo})"))
         urls = []
-        for docs_branch, group, footer, note in groups:
+        for target, base, docs_branch, group, footer, note in groups:
             if group:
                 body = f"{description}\n\n---\n{footer}"
-                url = await github.open_pull_request(token, repo["full_name"], repo["default_branch"], docs_branch, group, title, body)
+                url = await github.open_pull_request(token, target, base, docs_branch, group, title, body)
                 urls.append(url + note)
         return "\n".join(urls)
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 403:
             raise ToolError(
-                "The Ohara GitHub App cannot write to the docs repository. An admin must grant it "
+                "The Ohara GitHub App cannot write to the repository. An admin must grant it "
                 "Contents and Pull requests write permissions in the app settings, then accept them on the installation."
             )
         raise
+
+
+def same_repository(project: str, full_name: str) -> bool:
+    """Whether the project, a repository name or "owner/name", is this code repository."""
+    name = project.strip().rstrip("/").removesuffix(".git").rsplit("/", 1)[-1]
+    return bool(name) and name.lower() == full_name.rsplit("/", 1)[-1].lower()
 
 
 def code_branch(project: str, branch: str) -> str | None:
@@ -241,6 +285,13 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
    start on Windows) and ask the user to add this repository to the Ohara GitHub App installation, which needs an
    admin of the account. Wait for the user, then call check_repository again. If the user skips, or the result has
    no settings_url, go on and report the reason at the end.
+   Once connected, Ohara syncs this project's docs (docs/ by default) into apps/<repository name>/ on each push to
+   the default branch. If this project keeps its docs elsewhere (such as doc/, documentation/ or README.md), list
+   the folders and files you found and offer to write a .ohara.yml at the project root with them:
+   docs:
+     - documentation
+     - README.md
+   Write it only if the user agrees.
 
 2. Find the relevant pages. Look at this project (README, manifests, languages, frameworks, domain), then use
    list_pages and search, and read the pages that match. Sort them into guidelines (engineering rules that apply
@@ -250,17 +301,21 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
    {"mcpServers": {"ohara": {"type": "http", "url": "{url}/mcp"}}}
 
 4. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an older "## Ohara" section) with:
-   - Ohara at {url} is the source of truth for documentation and engineering guidelines. Never add
-     documentation to this repository: propose changes to Ohara instead.
+   - Ohara at {url} is the source of truth for documentation and engineering guidelines.
+   - If this project has synced docs (the docs paths from check_repository, or .ohara.yml): they live in this
+     repository, at those paths, and Ohara syncs them. Update them in the same change as the code. Every other
+     page lives in Ohara: propose changes to it, never add it to this repository.
+   - If not: never add documentation to this repository, propose changes to Ohara instead.
    - The guideline pages and the project doc pages you found, each as its path and one line on what it covers.
    - The workflow:
      - Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else
        relevant. Say when a page you rely on is stale.
      - Propose an architecture that follows the guidelines, and name the guidelines it relies on.
      - After the change, check it against the guidelines and fix what does not follow them.
-     - Then propose updates to every page the change affects in one propose_change, with the project's repository
-       name and active git branch, so each code branch gets a single pull request to review. Put the docs pull
-       request links in the code pull request's description.
+     - Then update this project's synced docs in the same change, and propose updates to every other page the
+       change affects in one propose_change, with the project's repository name and active git branch, so each
+       code branch gets a single pull request to review. Put the docs pull request links in the code pull
+       request's description.
 
 5. In .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
    "mcp__ohara__search", "mcp__ohara__stale_pages", "mcp__ohara__check_repository". Leave propose_change out, so each proposal is confirmed.
@@ -277,13 +332,16 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
 
 
 UPDATE_PROMPT = """Bring the Ohara documentation up to date with this project's code. Ohara runs at {url} and its
-documentation lives in the {repo} repository. Never edit documentation in this project: propose changes to Ohara.
+documentation lives in the {repo} repository. Edit this project's synced docs in place, and propose every other
+change to Ohara.
 
 1. Find what changed. Use the scope the user gave, if any. Otherwise take the uncommitted changes and the commits
    on this branch that are not on the default branch. If there are none, ask the user what to document.
 
 2. Find the pages to check: the project docs listed in the "## Ohara instructions" section of CLAUDE.md, pages that search
    finds for the features, modules and names the changes touch, and stale_pages entries that name this repository.
+   Pages whose source (from read_page) is in this repository are this project's synced docs: edit their source
+   files here, in the working tree, instead of proposing them.
 
 3. Read each page and compare it with the code as it is now, not only the diff. Note what is wrong, outdated or
    missing. When a change adds something no page covers, plan a new page in the folder where it fits.
@@ -292,11 +350,11 @@ documentation lives in the {repo} repository. Never edit documentation in this p
    and add covers entries ("owner/repo:pattern") for code the page now describes. When a stale page still matches
    the code, include it unchanged: merging the proposal marks it verified.
 
-5. Show the user the pages you will change and why, then send them as one propose_change, with the project's
-   repository name and active git branch. The title names the change, and the description lists each page with what changed in the code. If nothing needs changing, say so
+5. Show the user the pages you will change and why. Edit this project's synced docs in the working tree, then send
+   the other pages as one propose_change, with the project's repository name and active git branch. The title names the change, and the description lists each page with what changed in the code. If nothing needs changing, say so
    instead.
 
-6. Report the pull request URL.
+6. Report the files you edited and the pull request URL.
 """
 
 

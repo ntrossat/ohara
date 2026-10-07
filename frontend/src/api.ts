@@ -10,7 +10,8 @@ export type Status =
     };
 
 export type NavNode = { title: string; path: string | null; folder?: string; children: NavNode[] };
-export type Page = { title: string; file: string; markdown: string };
+export type Source = { repo: string; path: string; edit_url: string };
+export type Page = { title: string; file: string; markdown: string; source: Source | null };
 
 /** The path Ohara is served under, such as "/docs", set by the server. Empty at the root of the host. */
 export const base = document.querySelector<HTMLMetaElement>('meta[name="ohara-base"]')?.content ?? "";

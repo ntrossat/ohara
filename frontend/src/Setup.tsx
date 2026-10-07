@@ -63,7 +63,9 @@ export default function Setup({ url, installUrl, installed }: Props) {
               <h2>Create and install the GitHub App</h2>
               <p>
                 GitHub creates the app, then asks where to install it. Pick your docs repository, and the code
-                repositories whose changes should update the docs.
+                repositories whose changes should update the docs. Their <code>docs/</code> folders are synced into
+                the docs repository, so everyone who can read it can read them. Private code is never synced into a
+                public docs repository.
               </p>
               {!installUrl && (
                 <form onSubmit={createApp}>
