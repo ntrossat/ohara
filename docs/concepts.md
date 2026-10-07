@@ -1,5 +1,6 @@
 ---
 order: 1
+covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py, ntrossat/ohara:backend/ohara/codeowners.py]
 ---
 
 # How Ohara works

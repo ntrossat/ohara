@@ -1,5 +1,6 @@
 ---
 order: 1
+covers: [ntrossat/ohara:backend/ohara/*, ntrossat/ohara:frontend/src/*]
 ---
 
 # Architecture

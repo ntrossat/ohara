@@ -1,3 +1,7 @@
+---
+covers: [ntrossat/ohara:Dockerfile, ntrossat/ohara:docker-compose.yml, ntrossat/ohara:.github/workflows/*, ntrossat/ohara:backend/ohara/db.py, ntrossat/ohara:backend/ohara/store.py]
+---
+
 # Operate
 
 How to keep Ohara running: data, backups, updates, continuous deployment, and fixes for common problems.

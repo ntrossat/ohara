@@ -1,5 +1,6 @@
 ---
 order: 2
+covers: [ntrossat/ohara:backend/ohara/appdocs.py, ntrossat/ohara:backend/ohara/appconfig.py, ntrossat/ohara:backend/ohara/codeowners.py, ntrossat/ohara:backend/ohara/freshness.py]
 ---
 
 # Code repositories

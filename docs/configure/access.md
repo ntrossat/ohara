@@ -1,5 +1,6 @@
 ---
 order: 3
+covers: [ntrossat/ohara:backend/ohara/sessions.py, ntrossat/ohara:backend/ohara/oauth.py]
 ---
 
 # Access

@@ -1,5 +1,6 @@
 ---
 order: 4
+covers: [ntrossat/ohara:frontend/src/styles.css, ntrossat/ohara:backend/ohara/mcp_server.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py]
 ---
 
 # Customize

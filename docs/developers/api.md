@@ -1,5 +1,6 @@
 ---
 order: 2
+covers: [ntrossat/ohara:backend/ohara/main.py, ntrossat/ohara:backend/ohara/mcp_server.py]
 ---
 
 # API
