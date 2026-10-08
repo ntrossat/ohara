@@ -4,7 +4,7 @@
 
 Ohara is an open-source documentation manager. It gathers your docs and engineering guidelines in one GitHub repository, gives every coding assistant the same guidelines, and updates the docs with each code change, through pull requests a human approves.
 
-![The Ohara docs reader](.github/screenshot.jpg)
+![The Ohara docs reader](docs/screenshot.jpg)
 
 ---
 
@@ -55,7 +55,7 @@ Every piece of documentation is updated by AI and approved by a human.
 - Every change goes through a validation workflow
 - Full history, review, and traceability
 - The docs changes of a code branch go to one pull request, linked from the code pull request
-- Code repositories can keep their own docs next to the code: Ohara syncs them into the documentation repository on each push
+- Code repositories can keep their own docs next to the code: Ohara shows them next to the documentation and syncs them on each push
 - Configurable repository
 
 ### Freshness
@@ -137,7 +137,7 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-Code repositories on the same installation flag the pages whose `covers` name them. A repository that opts in with a `.ohara.yml` at its root (`/ohara:init` writes one with `docs:` listing `docs`) has those docs synced one way into `apps/<repo>/` of the docs repository on each push. A private code repository is never synced into a public docs repository. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though in code repositories Ohara only reads their docs and which files changed, and opens the pull requests proposed for their docs.
+Code repositories on the same installation flag the pages whose `covers` name them. A repository that opts in with a `.ohara.yml` at its root (`/ohara:init` writes one with `docs:` listing `docs`) has those docs synced one way into `apps/<repo>/` of the website on each push, without commits to the docs repository. A private code repository is never synced when the docs repository is public. Add more later in the app's installation settings on GitHub, or let `/ohara:init` open them for the project's repository. The app can write to every repository it is installed on, though in code repositories Ohara only reads their docs and which files changed.
 
 Connect a coding assistant to the MCP server. For a private docs repository, it opens a GitHub sign-in on first use:
 

@@ -18,7 +18,7 @@ To give someone access, add them to the repository, or to a team that can read i
 | Action | Needs |
 |---|---|
 | Read the website and the MCP server | Read access to a private docs repository, nothing for a public one |
-| Propose changes through MCP | Write access to the docs repository, or to the code repository of a synced page |
+| Propose changes through MCP | Write access to the docs repository |
 | Merge pull requests | GitHub's own rules on the repository |
 
 ## Sign-in

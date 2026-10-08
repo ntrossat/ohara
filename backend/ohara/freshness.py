@@ -113,16 +113,6 @@ def set_field(markdown: str, key: str, value: str) -> str:
     return f"---\n{block}\n---\n{markdown[match.end():]}"
 
 
-def remove_field(markdown: str, key: str) -> str:
-    """Remove one front matter field, and the front matter when nothing else is left in it."""
-    match = docs.FRONT_MATTER.match(markdown)
-    if not match:
-        return markdown
-    block = re.sub(rf"^{re.escape(key)}:.*(\n|$)", "", match.group(1), flags=re.M).strip("\n")
-    body = markdown[match.end():]
-    return f"---\n{block}\n---\n{body}" if block.strip() else body.lstrip("\n")
-
-
 def stamp_verified(markdown: str, day: datetime.date) -> str:
     """Set `verified` in the page's front matter, keeping the rest of it as written."""
     return set_field(markdown, "verified", day.isoformat())

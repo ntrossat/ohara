@@ -33,9 +33,9 @@ All routes are under `OHARA_URL`, including its path.
 
 | Event | From | Ohara |
 |---|---|---|
-| `push` to the default branch | Docs repository | Updates the snapshot. If someone other than the app changed `apps/<name>/`, syncs that repository again |
+| `push` to the default branch | Docs repository | Updates the snapshot |
 | `push` to the default branch | Code repository | Syncs its docs if they or `.ohara.yml` changed, then flags the pages that cover the changed files |
-| `repository` | Docs repository | Updates the snapshot, visibility, and default branch. When made public, syncs every code repository again |
+| `repository` | Docs repository | Updates the snapshot, visibility, and default branch, and syncs every code repository again |
 | `installation_repositories` | The installation | Syncs added repositories, and removes the folders of removed ones |
 
 ## MCP server

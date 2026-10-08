@@ -367,17 +367,6 @@ def test_proposal_rejects_paths_outside_the_docs(mcp, configure):
     assert not pull.called
 
 
-@respx.mock
-def test_proposal_checks_collaborator_permission_when_the_repository_omits_it(mcp, configure):
-    configure(private=False)
-    mock_proposal()
-    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
-    permission = respx.get(f"{REPO_URL}/collaborators/ada/permission").mock(return_value=httpx.Response(200, json={"permission": "read"}))
-    assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["isError"] is True
-    permission.mock(return_value=httpx.Response(200, json={"permission": "write"}))
-    assert result(call(mcp, "propose_change", token="ghp_1", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")
-
-
 def rpc(client, method, **params):
     body = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
     return client.post("/mcp", json=body, headers=HEADERS)
@@ -497,7 +486,7 @@ def test_synced_pages_report_their_source(mcp, configure, data_dir):
 
 
 @respx.mock
-def test_proposal_for_a_synced_page_of_this_project_is_refused(mcp, configure, data_dir):
+def test_proposal_for_a_synced_page_names_its_source(mcp, configure, data_dir):
     configure(private=False)
     add_synced_page(data_dir)
     respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
@@ -514,29 +503,6 @@ def test_proposal_for_a_new_page_under_apps_is_refused(mcp, configure, data_dir)
     page = {"path": "apps/api/new", "markdown": "# New"}
     answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page]))
     assert answer["isError"] and "synced from code repositories" in answer["content"][0]["text"]
-
-
-@respx.mock
-def test_proposal_for_a_synced_page_of_another_repository_goes_to_it(mcp, configure, data_dir):
-    configure(private=False)
-    add_synced_page(data_dir)
-    respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
-    respx.get(f"{API}/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
-    write = respx.get(CODE_URL).mock(return_value=httpx.Response(200, json={"permissions": {"push": True}}))
-    respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
-    respx.get(f"{CODE_URL}/pulls").mock(return_value=httpx.Response(200, json=[]))
-    respx.get(f"{CODE_URL}/git/ref/heads/main").mock(return_value=httpx.Response(200, json={"object": {"sha": "base"}}))
-    ref = respx.post(f"{CODE_URL}/git/refs").mock(return_value=httpx.Response(201, json={}))
-    respx.get(f"{CODE_URL}/contents/docs/billing.md").mock(return_value=httpx.Response(200, json={"sha": "old"}))
-    put = respx.put(f"{CODE_URL}/contents/docs/billing.md").mock(return_value=httpx.Response(200, json={}))
-    respx.post(f"{CODE_URL}/pulls").mock(return_value=httpx.Response(201, json={"html_url": "https://github.com/acme/api/pull/3"}))
-    page = {"path": "apps/api/billing", "markdown": '---\nsource: "acme/api:docs/billing.md"\nowner: ada\n---\n\n# Billing v2'}
-    answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page], project="web", branch="feat/x"))
-    assert answer["structuredContent"]["result"] == "https://github.com/acme/api/pull/3 (acme/api)"
-    assert write.called and json.loads(ref.calls.last.request.content)["ref"] == "refs/heads/web/feat/x"
-    content = base64.b64decode(json.loads(put.calls.last.request.content)["content"]).decode()
-    today = datetime.date.today().isoformat()
-    assert content == f"---\nowner: ada\nverified: {today}\n---\n\n# Billing v2"
 
 
 @respx.mock

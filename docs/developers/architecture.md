@@ -28,10 +28,10 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | Module | Responsibility |
 |---|---|
 | `main.py` | Routes: setup, sign-in, docs API, the webhook, and the React app. Startup and background tasks |
-| `github.py` | Every GitHub call, through one shared client with a timeout, keeping only the fields Ohara uses: the app manifest, installation tokens, repository contents, Git trees and commits, pull requests, user sign-in, webhook signatures |
+| `github.py` | Every GitHub call, through one shared client with a timeout, keeping only the fields Ohara uses: the app manifest, installation tokens, repository contents and tarballs, pull requests, user sign-in, webhook signatures |
 | `docs.py` | The snapshot: tarball extraction, navigation, page lookup, and the pages it puts in the search index |
 | `freshness.py` | Owners, verified dates, `covers`, stale flags, and front matter edits |
-| `appdocs.py` | The sync of code repositories' docs into `apps/<repository>/` |
+| `appdocs.py` | The sync of code repositories' docs into `apps/<repository>/` of the snapshot |
 | `appconfig.py` | Reading and validating `.ohara.yml` |
 | `mcp_server.py` | MCP tools and prompts, and the bearer-token guard on `/mcp` |
 | `oauth.py` | The OAuth authorization server for MCP clients |
@@ -77,12 +77,10 @@ Nothing is kept in process memory apart from caches. `ohara.db` holds JSON recor
 
 The `pages` table is an SQLite FTS5 index of the snapshot, rebuilt on each update.
 
-Earlier versions saved `settings.json`, `sessions.json`, and `oauth.json`. On first start, Ohara imports them into `ohara.db` and renames them `*.json.imported`.
-
 ## Docs updates
 
 1. A push to the docs repository's default branch sends a webhook. Ohara checks its signature with the app's webhook secret.
-2. Ohara downloads the branch as a tarball with the installation token, extracts it next to the snapshot, and swaps the folders, so readers never see a half-written snapshot.
+2. Ohara downloads the branch as a tarball with the installation token, extracts it next to the snapshot, carries over the snapshot's `apps/` folder (files under `apps/` in the docs repository are ignored), and swaps the folders, so readers never see a half-written snapshot. One lock serializes every write to the snapshot.
 3. It rebuilds the search index.
 
 The same runs on each start and on `repository` events, which also refresh the repository's visibility and default branch.
@@ -114,20 +112,19 @@ To check access, Ohara reads the docs repository with the user's own token. A us
 
 | Token | Belongs to | Used for |
 |---|---|---|
-| Installation token | The app | Downloading docs, reading repositories, committing synced docs, and opening pull requests |
+| Installation token | The app | Downloading docs, reading repositories, and opening pull requests |
 | User token | Each user | Checking what that user may read or write. Never leaves the server |
 | `oha_` tokens | Each MCP grant | Calling `/mcp` |
 | GitHub token as bearer | CI and headless agents | Calling `/mcp`, with the same checks as a user token |
 
 ## Proposals
 
-`propose_change` maps each page path to a file, stamps `verified`, sorts the files (docs repository pages, and synced pages by their `source`), checks the caller's write access to each target repository, then commits on the right branches with the installation token and opens or updates the pull requests. See [API](api.md#mcp-server).
+`propose_change` maps each page path to a file, refuses synced pages under `apps/` (naming their `source`), stamps `verified`, checks the caller's write access to the docs repository, then commits on the branch with the installation token and opens or updates the pull request. See [API](api.md#mcp-server).
 
 | Branch | Holds |
 |---|---|
 | `<project>/<branch>` | Docs repository pages proposed from that code branch |
 | `ohara/<slug>-<random>` | Every docs repository page, when no project and branch are given |
-| `<project>/<branch>` or `ohara/<slug>-<random>` on a code repository | Synced pages of that repository, at their source path |
 
 Characters other than letters, digits, `_` and `-` in branch names become `-`. When a branch has an open pull request, the commits go to it with a comment that holds the title and description. A branch left from a closed pull request is reset to the default branch first, so it holds only the new change.
 
@@ -137,13 +134,12 @@ When a code repository pushes to its default branch, the webhook lists the chang
 
 ## App docs sync
 
-`appdocs.sync` runs one sync at a time:
+`appdocs.sync` writes only to Ohara's snapshot, never to a repository:
 
-1. Read the code repository. A private one with a public docs repository syncs nothing.
+1. Read the code repository. A private one with a public docs repository syncs nothing, and its folder is removed.
 2. Read `.ohara.yml` at the commit. Without it, nothing is synced.
-3. List the code repository's files with the recursive trees API. A missing commit or a truncated list stops the sync, so missing files are never taken for deleted ones.
+3. Download the repository at the commit as a tarball. A failed download stops the sync and keeps the last copy.
 4. Lay out the files under `apps/<repository>/` and add `source` to each Markdown file.
-5. Compare Git blob hashes with the docs repository's tree, upload the changed files, and delete the others.
-6. Commit on the default branch, or on `ohara/sync-<repository>` with a pull request when the branch is protected.
+5. Write them next to the folder, swap the folders, and rebuild the search index.
 
-On start, Ohara syncs every repository on the installation and removes `apps/` folders that belong to none of them.
+On start and on `repository` events, Ohara syncs every repository on the installation and removes `apps/` folders that belong to none of them.

@@ -69,8 +69,7 @@ Ohara then:
 | Page | Where the change goes |
 |---|---|
 | A page of the docs repository | A pull request on the docs repository, one per code branch |
-| A synced page of the current project | Refused: the assistant edits the file in the project instead |
-| A synced page of another code repository | A pull request on that repository |
+| A synced page under `apps/` | Refused with its `source`: the assistant edits that file in its code repository |
 | A new page under `apps/` | Refused: new app docs go in the code repository |
 
 The assistant treats content from other sources as untrusted, removes credentials and personal data before proposing, and lists what it removed in the description. The human review of the pull request is the final check.

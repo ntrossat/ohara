@@ -2,7 +2,7 @@
 cached access checks, and the search index.
 
 State is a set of JSON records keyed by kind and key. A record with `expires_at` disappears
-once that time has passed. JSON files from earlier versions are imported on first start.
+once that time has passed.
 """
 
 import json
@@ -29,7 +29,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS pages USING fts5(path UNINDEXED, title, body,
 """
 LIVE = "(expires_at IS NULL OR expires_at > ?)"
 BUSY_TIMEOUT = 10  # seconds to wait for another connection's write
-IMPORTED_SESSION_TTL = 30 * 24 * 3600  # seconds, as sessions.TTL (sessions imports this module)
 
 _ready: set[str] = set()
 
@@ -58,12 +57,8 @@ def _init(target: Path) -> None:
     conn = sqlite3.connect(target, timeout=BUSY_TIMEOUT)
     try:
         conn.executescript(SCHEMA)
-        with conn:
-            imported = _import_json(conn)
     finally:
         conn.close()
-    for source in imported:  # only once the import is committed
-        source.rename(source.with_suffix(".json.imported"))
     _ready.add(str(target))
 
 
@@ -144,25 +139,3 @@ def search_pages(words: list[str], limit: int) -> list[tuple[str, str, str]]:
             " WHERE pages MATCH ? ORDER BY bm25(pages, 0, 10, 1) LIMIT ?",
             (match, limit),
         ).fetchall()
-
-
-def _import_json(conn: sqlite3.Connection) -> list[Path]:
-    """Import the JSON files written by earlier versions. Returns the files to set aside."""
-
-    def read(name: str) -> dict:
-        try:
-            return json.loads((data_dir() / name).read_text())
-        except (FileNotFoundError, json.JSONDecodeError):
-            return {}
-
-    for key, value in read("settings.json").items():
-        put("settings", key, value, conn=conn)
-    for sid, session in read("sessions.json").items():
-        put("session", sid, session, time.time() + IMPORTED_SESSION_TTL, conn=conn)
-    oauth = read("oauth.json")
-    for client_id, client in oauth.get("clients", {}).items():
-        put("client", client_id, client, conn=conn)
-    for kind in ("access", "refresh"):
-        for key, token in oauth.get(kind, {}).items():
-            put(kind, key, token, token["expires_at"], conn=conn)
-    return [data_dir() / name for name in ("settings.json", "sessions.json", "oauth.json") if (data_dir() / name).exists()]

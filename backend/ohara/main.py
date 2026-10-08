@@ -8,7 +8,6 @@ import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
@@ -27,12 +26,11 @@ SETUP_TTL = 600  # seconds to come back from GitHub with the new app
 SIGN_IN_TTL = 600  # seconds to come back from the GitHub sign-in
 AUTH_METADATA = "/.well-known/oauth-authorization-server"
 RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
-sync_lock = asyncio.Lock()
 
 
 async def sync() -> None:
     """Refresh repository metadata and replace the docs snapshot with the default branch."""
-    async with sync_lock:
+    async with docs.lock:
         settings = store.load()
         app, repo = settings.get("app"), settings.get("repo")
         if not app or not repo:
@@ -55,27 +53,27 @@ async def safe_sync() -> None:
 
 async def startup() -> None:
     await safe_sync()
-    await safe_backfill()
+    await safe_sync_apps()
 
 
-async def backfill() -> None:
-    """Sync the docs of every code repository on the installation, so changes to the sync rules apply to all of them,
-    and remove the synced folders of repositories that are no longer on it."""
+async def sync_apps() -> None:
+    """Sync the docs of every code repository on the installation, and remove the synced folders of
+    repositories that are no longer on it."""
     settings = store.load()
     token = await github.installation_token(settings["app"], settings["installation_id"])
     repos = [repo for repo in await github.installation_repos(token) if repo["full_name"] != settings["repo"]["full_name"]]
     for repo in repos:
-        await appdocs.sync(settings, repo["full_name"])
+        await safe_sync_app(repo["full_name"])
     owner = settings["repo"]["full_name"].split("/")[0]
     for name in appdocs.orphans(config.docs_dir(), {repo["name"] for repo in repos}):
-        await appdocs.remove(settings, f"{owner}/{name}")
+        await appdocs.remove(f"{owner}/{name}")
 
 
-async def safe_backfill() -> None:
+async def safe_sync_apps() -> None:
     try:
-        await backfill()
+        await sync_apps()
     except Exception:
-        log.exception("app docs backfill failed")
+        log.exception("app docs sync failed")
 
 
 async def safe_sync_app(full_name: str, ref: str | None = None) -> None:
@@ -87,7 +85,7 @@ async def safe_sync_app(full_name: str, ref: str | None = None) -> None:
 
 async def safe_remove_app(full_name: str) -> None:
     try:
-        await appdocs.remove(store.load(), full_name)
+        await appdocs.remove(full_name)
     except Exception:
         log.exception("removing the app docs of %s failed", full_name)
 
@@ -368,14 +366,7 @@ def logout(request: Request) -> RedirectResponse:
 
 @app.get("/api/nav", dependencies=[Depends(require_reader)])
 def nav() -> list[dict]:
-    root = config.docs_dir()
-    return cached_nav(root, root.stat().st_ino) if root.exists() else []
-
-
-@functools.lru_cache(maxsize=1)
-def cached_nav(root: Path, _snapshot: int) -> list[dict]:
-    """Each sync swaps in a new snapshot folder, so its inode identifies the snapshot."""
-    return docs.build_nav(root)
+    return docs.nav(config.docs_dir())
 
 
 @app.get("/api/page", dependencies=[Depends(require_reader)])
@@ -432,15 +423,12 @@ async def webhook(request: Request, background: BackgroundTasks) -> dict:
             background.add_task(safe_check_code, payload)
             return {"synced": False, "checked": True}
         return {"synced": False}
-    pushed_default = event == "push" and payload.get("ref") == f"refs/heads/{repo['default_branch']}"
-    if pushed_default:
-        for full_name in appdocs.touched_by_hand(payload, settings):
-            background.add_task(safe_sync_app, full_name)
-    if pushed_default or event == "repository":
+    if event == "push" and payload.get("ref") == f"refs/heads/{repo['default_branch']}":
         background.add_task(safe_sync)
-        if event == "repository" and payload.get("action") == "publicized":
-            for full_name in db.all("app"):  # private code repositories must leave the now public docs
-                background.add_task(safe_sync_app, full_name)
+        return {"synced": True}
+    if event == "repository":
+        background.add_task(safe_sync)
+        background.add_task(safe_sync_apps)  # a change of visibility changes which code repositories sync
         return {"synced": True}
     return {"synced": False}
 

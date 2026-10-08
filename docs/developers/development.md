@@ -25,7 +25,7 @@ cd backend && OHARA_DATA_DIR=.data uv run uvicorn ohara.main:app --reload
 cd frontend && npm run dev
 ```
 
-A local instance creates its own GitHub App. If you install it on the same repositories as a production instance, both act on them: a local instance with the sync feature commits to the same docs repository. Use a separate docs repository for development.
+A local instance creates its own GitHub App. If you install it on the same repositories as a production instance, both act on them: proposals from a local instance open pull requests on the same docs repository. Use a separate docs repository for development.
 
 ## Test
 

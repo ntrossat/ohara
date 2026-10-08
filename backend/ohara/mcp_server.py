@@ -59,13 +59,13 @@ def list_pages() -> list[dict]:
         for node in nodes:
             if node["path"] is not None:
                 page = {"path": node["path"], "title": " / ".join([*parents, node["title"]])}
-                found = docs.read_page(root, node["path"]) if node["path"].startswith(f"{appdocs.APPS}/") else None
+                found = docs.read_page(root, node["path"]) if node["path"].startswith(f"{docs.APPS}/") else None
                 if found and found["meta"].get("source"):
                     page["source"] = str(found["meta"]["source"])
                 pages.append(page)
             walk(node["children"], [*parents, node["title"]])
 
-    walk(docs.build_nav(root) if root.exists() else [], [])
+    walk(docs.nav(root), [])
     return pages
 
 
@@ -129,7 +129,7 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
     """Check that the Ohara GitHub App is installed on a code repository, given as "owner/name" (from git remote).
 
     The app must be installed on a code repository for pushes to flag the pages that cover its code, and for its
-    docs to be synced into the docs repository.
+    docs to be synced into Ohara.
     When it is not, returns the GitHub page where an admin of the repository's account adds it to the installation.
     When it is, returns the paths whose docs are synced (from the repository's .ohara.yml, none without it) and
     their folder in Ohara, or why they are not synced.
@@ -176,12 +176,11 @@ async def propose_change(
 
     When the change comes from a code project, pass the project's repository name and its active git branch.
     Ohara then commits on the "project/branch" branch of the docs repository, and adds to its open pull request
-    if there is one. Returns the pull request URLs: put them in the code pull request's description so its
+    if there is one. Returns the pull request URL: put it in the code pull request's description so its
     reviewers see the docs changes.
 
-    Pages under apps/ are synced from code repositories. A page from the current project can't be proposed: edit
-    its source file in the project, in the same change as the code. A page from another code repository becomes
-    a pull request on that repository. New pages under apps/ are refused: add them to the code repository's docs.
+    Pages under apps/ are synced from code repositories and can't be proposed: edit their source file in that
+    repository instead, in the same change as the code.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
     if not caller:
@@ -189,49 +188,28 @@ async def propose_change(
     settings = store.load()
     repo = settings["repo"]
     today = datetime.date.today()
-    files, elsewhere = {}, {}  # docs repository files, and code repository -> its files
+    files = {}
     for page in pages:
         file = file_for(page.path)
-        markdown = freshness.stamp_verified(page.markdown, today)
-        if not appdocs.synced(file):
-            files[file] = markdown
-            continue
-        found = docs.read_page(config.docs_dir(), page.path.strip().strip("/").removesuffix(".md"))
-        source_repo, _, source_path = str((found or {}).get("meta", {}).get("source") or "").partition(":")
-        if not found or not source_repo or not source_path:
-            raise ToolError(
-                f"{page.path}: pages under {appdocs.APPS}/ are synced from code repositories. Add new pages to the code repository's docs"
-            )
-        if same_repository(project, source_repo):
-            raise ToolError(f"{page.path} lives in this project at {source_path}: edit that file, in the same change as the code")
-        elsewhere.setdefault(source_repo, {})[source_path] = freshness.remove_field(markdown, "source")
-    if not files and not elsewhere:
+        if appdocs.synced(file):
+            found = docs.read_page(config.docs_dir(), page.path.strip().strip("/").removesuffix(".md"))
+            source = (found or {}).get("meta", {}).get("source")
+            where = f"Edit {source} instead" if source else "Add new pages to the code repository's docs"
+            raise ToolError(f"{page.path}: pages under {docs.APPS}/ are synced from code repositories. {where}, in the same change as the code")
+        files[file] = freshness.stamp_verified(page.markdown, today)
+    if not files:
         raise ToolError("No pages to change")
     try:
         login = caller.login or (await github.get_user(caller.github_token))["login"]
-        for target in ([repo["full_name"]] if files else []) + list(elsewhere):
-            if not await github.user_can_write(caller.github_token, target, login):
-                name = "the docs repository" if target == repo["full_name"] else target
-                raise ToolError(f"Proposing changes requires write access to {name}")
+        if not await github.user_can_write(caller.github_token, repo["full_name"]):
+            raise ToolError("Proposing changes requires write access to the docs repository")
     except github.Unauthorized:
         raise ToolError("Sign in again: the GitHub token is no longer valid")
-    signature = f"Proposed through Ohara by @{login}."
-    code = code_branch(project, branch)
-    groups = []  # (repository, base, branch, files, note)
-    if files:
-        groups.append((repo["full_name"], repo["default_branch"], code or branch_for(title), files, ""))
+    body = f"{description}\n\n---\nProposed through Ohara by @{login}."
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
-        for source_repo, group in elsewhere.items():
-            base = (appdocs.state(source_repo) or {}).get("branch") or (await github.get_repo(token, source_repo))["default_branch"]
-            groups.append((source_repo, base, code or branch_for(title), group, f" ({source_repo})"))
-        urls = []
-        for target, base, docs_branch, group, note in groups:
-            if group:
-                body = f"{description}\n\n---\n{signature}"
-                url = await github.open_pull_request(token, target, base, docs_branch, group, title, body)
-                urls.append(url + note)
-        return "\n".join(urls)
+        docs_branch = code_branch(project, branch) or branch_for(title)
+        return await github.open_pull_request(token, repo["full_name"], repo["default_branch"], docs_branch, files, title, body)
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 403:
             raise ToolError(
@@ -239,12 +217,6 @@ async def propose_change(
                 "Contents and Pull requests write permissions in the app settings, then accept them on the installation."
             )
         raise
-
-
-def same_repository(project: str, full_name: str) -> bool:
-    """Whether the project, a repository name or "owner/name", is this code repository."""
-    name = project.strip().rstrip("/").removesuffix(".git").rsplit("/", 1)[-1]
-    return bool(name) and name.lower() == full_name.rsplit("/", 1)[-1].lower()
 
 
 def code_branch(project: str, branch: str) -> str | None:

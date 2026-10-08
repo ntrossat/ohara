@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import hashlib
 import hmac
 import json
@@ -8,12 +7,10 @@ import httpx
 import pytest
 import respx
 
-from ohara import appconfig, appdocs, db, docs, store
-from ohara import config as config_module
-from tests.conftest import REPO
+from ohara import appconfig, appdocs, db, docs, main, store
+from tests.conftest import REPO, tarball
 
 API = "https://api.github.com"
-DOCS = f"{API}/repos/{REPO}"
 CODE = f"{API}/repos/acme/api"
 
 
@@ -62,178 +59,142 @@ def test_matches_synced_paths_and_the_config_file():
 # Sync
 
 
-def blob(text):
-    return {"content": base64.b64encode(text.encode()).decode()}
-
-
-def mock_sync(code_files, docs_files=None, config="docs:\n  - docs\n", private=False, protected=False):
-    """Mock GitHub for a sync of acme/api. Returns the routes that write to the docs repository."""
+def mock_sync(code_files, config="docs:\n  - docs\n", private=False):
+    """Mock GitHub for a sync of acme/api. Returns the tarball route."""
     respx.post(f"{API}/app/installations/42/access_tokens").mock(return_value=httpx.Response(201, json={"token": "ghs_app"}))
     respx.get(CODE).mock(return_value=httpx.Response(200, json={"full_name": "acme/api", "name": "api", "private": private, "default_branch": "main"}))
     respx.get(f"{CODE}/contents/.ohara.yml").mock(
         return_value=httpx.Response(200, text=config) if config is not None else httpx.Response(404)
     )
-    tree = [{"path": path, "type": "blob", "mode": "100644", "sha": f"sha-{path}", "size": len(text)} for path, text in code_files.items()]
-    respx.get(url__regex=rf"{CODE}/git/trees/.*").mock(return_value=httpx.Response(200, json={"tree": tree}))
-    for path, text in code_files.items():
-        respx.get(f"{CODE}/git/blobs/sha-{path}").mock(return_value=httpx.Response(200, json=blob(text)))
-    current = [{"path": path, "type": "blob", "sha": sha} for path, sha in (docs_files or {}).items()]
-    for path in docs_files or {}:  # the local snapshot mirrors the docs repository
-        file = config_module.docs_dir() / path
-        file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text("synced")
-    respx.get(f"{DOCS}/git/trees/main").mock(return_value=httpx.Response(200, json={"tree": current}))
-    blobs = respx.post(f"{DOCS}/git/blobs").mock(return_value=httpx.Response(201, json={"sha": "new-blob"}))
-    respx.get(f"{DOCS}/git/ref/heads/main").mock(return_value=httpx.Response(200, json={"object": {"sha": "head"}}))
-    respx.get(f"{DOCS}/git/commits/head").mock(return_value=httpx.Response(200, json={"tree": {"sha": "head-tree"}}))
-    trees = respx.post(f"{DOCS}/git/trees").mock(return_value=httpx.Response(201, json={"sha": "tree"}))
-    commits = respx.post(f"{DOCS}/git/commits").mock(return_value=httpx.Response(201, json={"sha": "commit"}))
-    move = respx.patch(f"{DOCS}/git/refs/heads/main").mock(
-        return_value=httpx.Response(422, json={"message": "Protected branch"}) if protected else httpx.Response(200, json={})
-    )
-    return {"blobs": blobs, "trees": trees, "commits": commits, "move": move}
+    return respx.get(url__regex=rf"{CODE}/tarball/.*").mock(return_value=httpx.Response(200, content=tarball(code_files)))
 
 
 def run_sync(ref=None):
     return asyncio.run(appdocs.sync(store.load(), "acme/api", ref))
 
 
-def written(routes):
-    return {entry["path"]: entry["sha"] for entry in json.loads(routes["trees"].calls.last.request.content)["tree"]}
+def synced_files(data_dir):
+    folder = data_dir / "docs" / "apps" / "api"
+    return {file.relative_to(folder).as_posix(): file.read_text() for file in folder.rglob("*") if file.is_file()} if folder.exists() else {}
+
+
+def add_synced_folder(data_dir):
+    (data_dir / "docs" / "apps" / "api").mkdir(parents=True)
+    (data_dir / "docs" / "apps" / "api" / "old.md").write_text("# Old")
 
 
 @respx.mock
-def test_sync_commits_the_docs_folder_with_its_source(configure):
+def test_sync_writes_the_docs_folder_with_its_source(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({"docs/README.md": "# API", "docs/img/logo.png": "png", "src/app.py": "code", "docs/.hidden.md": "x"})
-    assert run_sync("abcdef1234567890") is None
-    assert written(routes) == {"apps/api/README.md": "new-blob", "apps/api/img/logo.png": "new-blob"}
-    first = json.loads(routes["blobs"].calls[0].request.content)
-    assert base64.b64decode(first["content"]).decode() == '---\nsource: "acme/api:docs/README.md"\n---\n\n# API'
-    commit = json.loads(routes["commits"].calls.last.request.content)
-    assert commit == {"message": "docs: sync acme/api@abcdef123456", "tree": "tree", "parents": ["head"]}
-    assert routes["move"].called
+    mock_sync({"docs/README.md": "# API", "docs/img/logo.png": "png", "src/app.py": "code", "docs/.hidden.md": "x"})
+    run_sync("abcdef1234567890")
+    assert synced_files(data_dir) == {"README.md": '---\nsource: "acme/api:docs/README.md"\n---\n\n# API', "img/logo.png": "png"}
     assert appdocs.state("acme/api") == {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None}
+    assert docs.search("API", 5)[0]["path"] == "apps/api"
 
 
 @respx.mock
-def test_sync_removes_deleted_files_and_skips_unchanged_ones(configure):
+def test_sync_replaces_the_previous_copy(configure, data_dir):
     configure(private=False)
-    synced = '---\nsource: "acme/api:docs/a.md"\n---\n\n# A'
-    unchanged = appdocs.git_sha(synced.encode())
-    routes = mock_sync({"docs/a.md": "# A"}, {"apps/api/a.md": unchanged, "apps/api/old.md": "old", "apps/other/x.md": "x"})
+    add_synced_folder(data_dir)
+    mock_sync({"docs/a.md": "# A"})
     run_sync()
-    assert written(routes) == {"apps/api/old.md": None}
-    assert not routes["blobs"].called
+    assert set(synced_files(data_dir)) == {"a.md"}
 
 
 @respx.mock
-def test_sync_without_changes_makes_no_commit(configure):
+def test_sync_follows_the_config_file(configure, data_dir):
     configure(private=False)
-    synced = '---\nsource: "acme/api:docs/a.md"\n---\n\n# A'
-    routes = mock_sync({"docs/a.md": "# A"}, {"apps/api/a.md": appdocs.git_sha(synced.encode())})
+    mock_sync({"documentation/guide.md": "# Guide", "README.md": "# Readme", "docs/a.md": "# A"}, config="docs:\n  - documentation\n  - README.md\n")
     run_sync()
-    assert not routes["trees"].called
+    assert set(synced_files(data_dir)) == {"guide.md", "README.md"}
 
 
 @respx.mock
-def test_sync_follows_the_config_file(configure):
+def test_sync_turned_off_removes_the_folder(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({"documentation/guide.md": "# Guide", "README.md": "# Readme", "docs/a.md": "# A"}, config="docs:\n  - documentation\n  - README.md\n")
+    add_synced_folder(data_dir)
+    download = mock_sync({"docs/a.md": "# A"}, config="docs: []")
     run_sync()
-    assert set(written(routes)) == {"apps/api/guide.md", "apps/api/README.md"}
+    assert synced_files(data_dir) == {} and not download.called
 
 
 @respx.mock
-def test_sync_turned_off_removes_the_folder(configure):
+def test_invalid_config_keeps_the_last_copy(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({"docs/a.md": "# A"}, {"apps/api/a.md": "sha"}, config="docs: []")
-    run_sync()
-    assert written(routes) == {"apps/api/a.md": None}
-
-
-@respx.mock
-def test_invalid_config_keeps_the_last_copy(configure):
-    configure(private=False)
+    add_synced_folder(data_dir)
     db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
-    routes = mock_sync({"docs/a.md": "# A"}, config="docs: [")
+    mock_sync({"docs/a.md": "# A"}, config="docs: [")
     run_sync()
-    assert not routes["trees"].called
+    assert set(synced_files(data_dir)) == {"old.md"}
     record = appdocs.state("acme/api")
     assert record["paths"] == ["docs"] and "not valid YAML" in record["skipped"]
 
 
 @respx.mock
-def test_private_code_is_never_synced_into_a_public_docs_repository(configure):
+def test_private_code_is_never_synced_into_a_public_docs_repository(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({"docs/a.md": "# A"}, private=True)
+    add_synced_folder(data_dir)  # a copy from when the docs repository was private
+    download = mock_sync({"docs/a.md": "# A"}, private=True)
     run_sync()
-    assert not routes["trees"].called
+    assert synced_files(data_dir) == {} and not download.called
     assert "is private" in appdocs.state("acme/api")["skipped"]
 
 
 @respx.mock
-def test_private_code_leaves_a_docs_repository_made_public(configure):
-    configure(private=False)
-    routes = mock_sync({"docs/a.md": "# A"}, {"apps/api/a.md": "sha"}, private=True)
+def test_private_code_is_synced_into_a_private_docs_repository(configure, data_dir):
+    configure(private=True)
+    mock_sync({"docs/a.md": "# A"}, private=True)
     run_sync()
-    assert written(routes) == {"apps/api/a.md": None}
+    assert set(synced_files(data_dir)) == {"a.md"}
 
 
 @respx.mock
-def test_symbolic_links_are_not_synced(configure):
+def test_symbolic_links_are_not_synced(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({"docs/a.md": "# A"})
-    link = {"path": "docs/secret.md", "type": "blob", "mode": "120000", "sha": "link", "size": 10}
-    respx.get(url__regex=rf"{CODE}/git/trees/.*").mock(
-        return_value=httpx.Response(200, json={"tree": [link, {"path": "docs/a.md", "type": "blob", "mode": "100644", "sha": "sha-docs/a.md", "size": 3}]})
+    mock_sync({"docs/a.md": "# A"})
+    respx.get(url__regex=rf"{CODE}/tarball/.*").mock(
+        return_value=httpx.Response(200, content=tarball({"docs/a.md": "# A"}, links=[("docs/secret.md", "/etc/passwd")]))
     )
     run_sync()
-    assert written(routes) == {"apps/api/a.md": "new-blob"}
+    assert set(synced_files(data_dir)) == {"a.md"}
 
 
 @respx.mock
-def test_files_over_1_mb_are_not_synced(configure):
+def test_files_over_1_mb_are_not_synced(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({"docs/limit.md": "x" * appdocs.MAX_SIZE, "docs/big.png": "x" * (appdocs.MAX_SIZE + 1)})
+    mock_sync({"docs/limit.md": "x" * appdocs.MAX_SIZE, "docs/big.png": "x" * (appdocs.MAX_SIZE + 1)})
     run_sync()
-    assert set(written(routes)) == {"apps/api/limit.md"}
+    assert set(synced_files(data_dir)) == {"limit.md"}
 
 
 @respx.mock
-def test_at_most_500_files_are_synced(configure):
+def test_at_most_500_files_are_synced(configure, data_dir):
     configure(private=False)
-    routes = mock_sync({f"docs/page-{n}.md": "# Page" for n in range(appdocs.MAX_FILES + 1)})
+    mock_sync({f"docs/page-{n}.md": "# Page" for n in range(appdocs.MAX_FILES + 1)})
     run_sync()
-    assert len(written(routes)) == 500
-
-
-def test_docs_repository_made_public_syncs_every_app_again(client, configure, calls):
-    configure(private=False)
-    db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": [], "skipped": "private"})
-    send(client, "repository", {"action": "publicized", "repository": {"full_name": REPO}})
-    assert calls == [("sync", "acme/api", None)]
+    assert len(synced_files(data_dir)) == 500
 
 
 @respx.mock
-def test_private_code_is_synced_into_a_private_docs_repository(configure):
-    configure(private=True)
-    routes = mock_sync({"docs/a.md": "# A"}, private=True)
+def test_a_failed_download_keeps_the_last_copy(configure, data_dir):
+    configure(private=False)
+    add_synced_folder(data_dir)
+    mock_sync({})
+    respx.get(url__regex=rf"{CODE}/tarball/.*").mock(return_value=httpx.Response(404))
+    with pytest.raises(httpx.HTTPStatusError):
+        run_sync("gone")
+    assert set(synced_files(data_dir)) == {"old.md"}
+
+
+@respx.mock
+def test_sync_without_a_config_file_syncs_nothing(configure, data_dir):
+    configure(private=False)
+    add_synced_folder(data_dir)
+    download = mock_sync({"docs/a.md": "# A"}, config=None)
     run_sync()
-    assert written(routes) == {"apps/api/a.md": "new-blob"}
-
-
-@respx.mock
-def test_protected_branch_gets_a_pull_request(configure):
-    configure(private=False)
-    mock_sync({"docs/a.md": "# A"}, protected=True)
-    respx.post(f"{DOCS}/git/refs").mock(return_value=httpx.Response(201, json={}))
-    branch = respx.patch(f"{DOCS}/git/refs/heads/ohara/sync-api").mock(return_value=httpx.Response(200, json={}))
-    respx.get(f"{DOCS}/git/ref/heads/ohara/sync-api").mock(return_value=httpx.Response(200, json={"object": {"sha": "head"}}))
-    respx.get(f"{DOCS}/pulls").mock(return_value=httpx.Response(200, json=[]))
-    pull = respx.post(f"{DOCS}/pulls").mock(return_value=httpx.Response(201, json={"html_url": "https://github.com/acme/handbook/pull/9"}))
-    assert run_sync() == "https://github.com/acme/handbook/pull/9"
-    assert branch.called and json.loads(pull.calls.last.request.content)["head"] == "ohara/sync-api"
+    assert synced_files(data_dir) == {} and not download.called
+    assert appdocs.state("acme/api")["paths"] == []
 
 
 @respx.mock
@@ -242,14 +203,21 @@ def test_docs_repository_is_never_synced(configure):
     assert asyncio.run(appdocs.sync(store.load(), REPO)) is None
 
 
-@respx.mock
-def test_remove_deletes_the_folder(configure):
+def test_remove_deletes_the_folder(configure, data_dir):
     configure(private=False)
+    add_synced_folder(data_dir)
     db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
-    routes = mock_sync({}, {"apps/api/a.md": "sha", "guide.md": "g"})
-    asyncio.run(appdocs.remove(store.load(), "acme/api"))
-    assert written(routes) == {"apps/api/a.md": None}
+    asyncio.run(appdocs.remove("acme/api"))
+    assert synced_files(data_dir) == {}
     assert appdocs.state("acme/api") is None
+
+
+def test_a_docs_repository_sync_keeps_the_synced_folders(data_dir):
+    root = data_dir / "docs"
+    add_synced_folder(data_dir)
+    docs.extract(tarball({"guide.md": "# Guide", "apps/api/stale.md": "# Committed by hand"}), root)
+    assert (root / "guide.md").exists()
+    assert set(synced_files(data_dir)) == {"old.md"}
 
 
 # Webhook
@@ -264,8 +232,6 @@ def send(client, event, payload):
 
 @pytest.fixture
 def calls(monkeypatch):
-    from ohara import main
-
     seen = []
 
     async def sync_app(full_name, ref=None):
@@ -274,11 +240,15 @@ def calls(monkeypatch):
     async def remove_app(full_name):
         seen.append(("remove", full_name))
 
+    async def sync_apps():
+        seen.append(("sync all",))
+
     async def nothing(*_):
         pass
 
     monkeypatch.setattr(main, "safe_sync_app", sync_app)
     monkeypatch.setattr(main, "safe_remove_app", remove_app)
+    monkeypatch.setattr(main, "safe_sync_apps", sync_apps)
     monkeypatch.setattr(main, "safe_sync", nothing)
     return seen
 
@@ -290,40 +260,35 @@ def test_added_and_removed_repositories_are_synced(client, configure, calls):
     assert calls == [("sync", "acme/api", None), ("remove", "acme/web")]
 
 
-def push(repo, files, sender="ada", before="a" * 40):
+def test_a_change_of_docs_repository_visibility_syncs_every_app_again(client, configure, calls):
+    configure(private=False)
+    send(client, "repository", {"action": "publicized", "repository": {"full_name": REPO}})
+    assert calls == [("sync all",)]
+
+
+def push(repo, files, before="a" * 40):
     return {
         "ref": "refs/heads/main",
         "before": before,
         "after": "b" * 40,
         "repository": {"full_name": repo, "default_branch": "main"},
         "installation": {"id": 42},
-        "sender": {"login": sender},
         "commits": [{"added": [], "modified": files, "removed": []}],
     }
 
 
-def test_push_that_changes_docs_syncs_them(client, configure, calls):
+def test_push_that_changes_docs_syncs_them(configure, calls):
     configure(private=False)
     db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
-    from ohara import main
-
     asyncio.run(main.check_code(push("acme/api", ["docs/a.md"], before="0" * 40)))
     asyncio.run(main.check_code(push("acme/api", ["src/a.py"], before="0" * 40)))
     asyncio.run(main.check_code(push("acme/api", [".ohara.yml"], before="0" * 40)))
     assert calls == [("sync", "acme/api", "b" * 40), ("sync", "acme/api", "b" * 40)]
 
 
-def test_hand_edits_to_a_synced_folder_are_synced_again(client, configure, calls):
+def test_a_push_without_a_config_file_does_not_sync(configure, calls):
     configure(private=False)
-    db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
-    send(client, "push", push(REPO, ["apps/api/a.md", "apps/unknown/b.md", "guide.md"]))
-    assert calls == [("sync", "acme/api", None)]
-
-
-def test_the_apps_own_sync_commits_are_left_alone(client, configure, calls):
-    configure(private=False)
-    db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
-    send(client, "push", push(REPO, ["apps/api/a.md"], sender="ohara-docs[bot]"))
+    asyncio.run(main.check_code(push("acme/web", ["docs/a.md"], before="0" * 40)))
     assert calls == []
 
 
@@ -338,64 +303,8 @@ def test_synced_pages_link_to_their_source(client, configure, data_dir):
     assert client.get("/api/page", params={"path": "faked"}).json()["source"] is None
 
 
-@respx.mock
-def test_a_missing_commit_never_deletes_the_folder(configure):
+def test_sync_apps_syncs_every_repository_and_removes_orphan_folders(configure, data_dir, monkeypatch):
     configure(private=False)
-    routes = mock_sync({}, {"apps/api/a.md": "sha"})
-    respx.get(url__regex=rf"{CODE}/git/trees/.*").mock(return_value=httpx.Response(404))
-    with pytest.raises(httpx.HTTPStatusError):
-        run_sync("gone")
-    assert not routes["trees"].called
-
-
-@respx.mock
-def test_a_truncated_tree_never_deletes_files(configure):
-    configure(private=False)
-    routes = mock_sync({}, {"apps/api/a.md": "sha"})
-    respx.get(url__regex=rf"{CODE}/git/trees/.*").mock(return_value=httpx.Response(200, json={"tree": [], "truncated": True}))
-    with pytest.raises(ValueError):
-        run_sync()
-    assert not routes["trees"].called
-
-
-@respx.mock
-def test_an_empty_repository_has_no_docs(configure):
-    configure(private=False)
-    routes = mock_sync({}, {"apps/api/a.md": "sha"})
-    respx.get(url__regex=rf"{CODE}/git/trees/.*").mock(return_value=httpx.Response(409))
-    run_sync()
-    assert written(routes) == {"apps/api/a.md": None}
-
-
-@respx.mock
-def test_sync_without_a_config_file_syncs_nothing(configure):
-    configure(private=False)
-    routes = mock_sync({"docs/a.md": "# A"}, config=None)
-    run_sync()
-    assert not routes["trees"].called
-    assert appdocs.state("acme/api")["paths"] == []
-
-
-@respx.mock
-def test_removing_the_config_file_removes_the_synced_folder(configure):
-    configure(private=False)
-    routes = mock_sync({"docs/a.md": "# A"}, {"apps/api/a.md": "sha"}, config=None)
-    run_sync()
-    assert written(routes) == {"apps/api/a.md": None}
-
-
-def test_a_push_without_a_config_file_does_not_sync(client, configure, calls):
-    configure(private=False)
-    from ohara import main
-
-    asyncio.run(main.check_code(push("acme/web", ["docs/a.md"], before="0" * 40)))
-    assert calls == []
-
-
-def test_backfill_syncs_every_repository_and_removes_orphan_folders(configure, data_dir, monkeypatch):
-    configure(private=False)
-    from ohara import main
-
     for name in ("api", "gone"):
         (data_dir / "docs" / "apps" / name).mkdir(parents=True)
     seen = []
@@ -409,12 +318,12 @@ def test_backfill_syncs_every_repository_and_removes_orphan_folders(configure, d
     async def sync(_, full_name, ref=None):
         seen.append(("sync", full_name))
 
-    async def remove(_, full_name):
+    async def remove(full_name):
         seen.append(("remove", full_name))
 
     monkeypatch.setattr(main.github, "installation_token", token)
     monkeypatch.setattr(main.github, "installation_repos", repos)
     monkeypatch.setattr(main.appdocs, "sync", sync)
     monkeypatch.setattr(main.appdocs, "remove", remove)
-    asyncio.run(main.backfill())
+    asyncio.run(main.sync_apps())
     assert seen == [("sync", "acme/api"), ("sync", "acme/web"), ("remove", "acme/gone")]

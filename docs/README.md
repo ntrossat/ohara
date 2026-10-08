@@ -41,7 +41,7 @@ Ohara is an open-source documentation manager. It keeps your documentation and e
      +-----------------------------+------------------------------+
                                    |  GitHub App
                                    v
-     Docs repository  <---- sync ----  Code repositories
+     Docs repository                   Code repositories
      (Markdown, pull requests)         (pushes flag stale pages,
                                         docs change with the code)
 ```

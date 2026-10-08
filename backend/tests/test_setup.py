@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import respx
 
-from ohara import github, sessions, store
+from ohara import db, github, store
 from tests.conftest import REPO, tarball
 
 
@@ -43,7 +43,7 @@ def test_callback_saves_app_and_sends_admin_to_install(client, app_credentials):
     response = client.get("/api/setup/callback", params={"code": "abc", "state": state})
     assert response.headers["location"] == "https://github.com/apps/ohara-docs/installations/new"
     assert store.load()["app"] == app_credentials
-    assert (store.path().stat().st_mode & 0o777) == 0o600
+    assert (db.path().stat().st_mode & 0o777) == 0o600
     assert client.get("/api/setup/callback", params={"code": "abc", "state": state}).status_code == 400  # each state works once
 
 
@@ -165,13 +165,3 @@ def test_local_instances_get_no_webhook():
     assert "hook_attributes" not in github.manifest("http://192.168.1.20:8000")
     assert "hook_attributes" not in github.manifest("http://ohara:8000")
     assert github.manifest("https://docs.example.com")["default_events"] == ["push", "repository"]
-
-
-def test_settings_from_json_files_are_imported(client, data_dir, app_credentials):
-    repo = {"full_name": "acme/handbook", "private": True, "default_branch": "main"}
-    (data_dir / "settings.json").write_text(json.dumps({"app": app_credentials, "installation_id": 42, "repo": repo}))
-    (data_dir / "sessions.json").write_text(json.dumps({"sid-1": {"login": "ada", "avatar": "", "token": "ghu_1", "refresh": None, "expires_at": None}}))
-    assert store.load()["repo"] == repo
-    assert sessions.get("sid-1").login == "ada"
-    assert not (data_dir / "settings.json").exists()
-    assert (data_dir / "settings.json.imported").exists()

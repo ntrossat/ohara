@@ -1,12 +1,6 @@
 """Instance settings: GitHub App credentials and the docs repository."""
 
-from pathlib import Path
-
 from ohara import db
-
-
-def path() -> Path:
-    return db.path()
 
 
 def load() -> dict:

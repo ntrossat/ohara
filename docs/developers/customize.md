@@ -58,7 +58,7 @@ Access is enforced before any tool runs: for a private docs repository, only cal
 | Stale after 180 days | `STALE_AFTER_DAYS` in `freshness.py` |
 | Stale flags kept per page | `MAX_CHANGES` in `freshness.py` |
 | Synced file types, size, and count | `TYPES`, `MAX_SIZE`, `MAX_FILES` in `appdocs.py` |
-| Synced folder | `APPS` in `appdocs.py` |
+| Synced folder | `APPS` in `docs.py` |
 | `.ohara.yml` format and layout | `appconfig.py` |
 | Search results | `SEARCH_LIMIT` in `mcp_server.py` |
 | Access check interval | `CHECK_INTERVAL` in `sessions.py` |

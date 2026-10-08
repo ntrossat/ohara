@@ -60,7 +60,7 @@ A page is stale when its `verified` date is more than 180 days old, or when a pu
 
 ## Docs that live with the code
 
-A code repository can keep its own docs next to the code, so they change in the same pull request. With a `.ohara.yml` at its root, Ohara syncs them into `apps/<repository name>/` of the docs repository on each push. Synced pages link back to their source file, and proposals for them go to the code repository.
+A code repository can keep its own docs next to the code, so they change in the same pull request. With a `.ohara.yml` at its root, Ohara syncs them into `apps/<repository name>/` of the website on each push, without committing them to the docs repository. Synced pages link back to their source file, and proposals for them go to the code repository.
 
 See [Code repositories](configure/code-repositories.md#sync-docs-from-a-code-repository).
 

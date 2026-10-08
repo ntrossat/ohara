@@ -196,71 +196,6 @@ async def get_file(token: str, full_name: str, path: str, ref: str) -> str | Non
     return r.text
 
 
-async def get_tree(token: str, full_name: str, ref: str) -> list[dict]:
-    """Every file of the repository at `ref`, with its path, mode, blob sha and size. Raises when GitHub can't list
-    them all, so a sync never mistakes a missing file for a deleted one."""
-    r = await client().get(f"{API}/repos/{full_name}/git/trees/{quote(ref)}", params={"recursive": 1}, headers=auth(token))
-    if r.status_code == 409:  # an empty repository
-        return []
-    r.raise_for_status()
-    if r.json().get("truncated"):  # a partial list would delete the files left out
-        raise ValueError(f"{full_name} has too many files to list")
-    return [entry for entry in r.json()["tree"] if entry["type"] == "blob"]
-
-
-async def get_blob(token: str, full_name: str, sha: str) -> bytes:
-    r = await client().get(f"{API}/repos/{full_name}/git/blobs/{sha}", headers=auth(token))
-    r.raise_for_status()
-    return base64.b64decode(r.json()["content"])
-
-
-async def create_blob(token: str, full_name: str, data: bytes) -> str:
-    blob = {"content": base64.b64encode(data).decode(), "encoding": "base64"}
-    r = await client().post(f"{API}/repos/{full_name}/git/blobs", json=blob, headers=auth(token))
-    r.raise_for_status()
-    return r.json()["sha"]
-
-
-async def commit_tree(token: str, full_name: str, branch: str, entries: list[dict], message: str) -> str | None:
-    """Commit tree `entries` on top of `branch` and move the branch to it. Returns the commit sha, or None
-    when GitHub refuses to move the branch, such as when it is protected."""
-    repo, c, headers = f"{API}/repos/{full_name}", client(), auth(token)
-    r = await c.get(f"{repo}/git/ref/heads/{quote(branch)}", headers=headers)
-    r.raise_for_status()
-    parent = r.json()["object"]["sha"]
-    r = await c.get(f"{repo}/git/commits/{parent}", headers=headers)
-    r.raise_for_status()
-    r = await c.post(f"{repo}/git/trees", json={"base_tree": r.json()["tree"]["sha"], "tree": entries}, headers=headers)
-    r.raise_for_status()
-    r = await c.post(f"{repo}/git/commits", json={"message": message, "tree": r.json()["sha"], "parents": [parent]}, headers=headers)
-    r.raise_for_status()
-    commit = r.json()["sha"]
-    r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": commit}, headers=headers)
-    if r.status_code in (403, 409, 422):
-        return None
-    r.raise_for_status()
-    return commit
-
-
-async def open_tree_pull_request(token: str, full_name: str, base: str, branch: str, entries: list[dict], title: str, body: str) -> str:
-    """Commit tree `entries` on `branch`, started again from `base`, and return the URL of its open pull request."""
-    repo, c, headers = f"{API}/repos/{full_name}", client(), auth(token)
-    r = await c.get(f"{repo}/git/ref/heads/{quote(base)}", headers=headers)
-    r.raise_for_status()
-    sha = r.json()["object"]["sha"]
-    r = await c.post(f"{repo}/git/refs", json={"ref": f"refs/heads/{branch}", "sha": sha}, headers=headers)
-    if r.status_code == 422:
-        r = await c.patch(f"{repo}/git/refs/heads/{quote(branch)}", json={"sha": sha, "force": True}, headers=headers)
-    r.raise_for_status()
-    await commit_tree(token, full_name, branch, entries, title)
-    pull = await find_pull(token, full_name, branch)
-    if pull:
-        return pull["html_url"]
-    r = await c.post(f"{repo}/pulls", json={"title": title, "body": body, "head": branch, "base": base}, headers=headers)
-    r.raise_for_status()
-    return r.json()["html_url"]
-
-
 # Change proposals
 
 
@@ -345,17 +280,11 @@ async def get_user(token: str) -> dict:
     return {"login": data["login"], "avatar_url": data.get("avatar_url", "")}
 
 
-async def user_can_write(token: str, full_name: str, login: str) -> bool:
-    c, headers = client(), auth(token)
-    r = await c.get(f"{API}/repos/{full_name}", headers=headers)
+async def user_can_write(token: str, full_name: str) -> bool:
+    r = await client().get(f"{API}/repos/{full_name}", headers=auth(token))
     if r.status_code == 401:
         raise Unauthorized()
-    if not r.is_success:
-        return False
-    if "permissions" in r.json():
-        return bool(r.json()["permissions"].get("push"))
-    r = await c.get(f"{API}/repos/{full_name}/collaborators/{quote(login)}/permission", headers=headers)
-    return r.is_success and r.json().get("permission") in ("admin", "maintain", "write")
+    return r.is_success and bool(r.json().get("permissions", {}).get("push"))
 
 
 async def user_can_read(token: str, full_name: str) -> bool:

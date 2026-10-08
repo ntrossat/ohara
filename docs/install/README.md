@@ -46,7 +46,7 @@ The app asks for these permissions:
 | Permission | Why |
 |---|---|
 | Metadata: read | List the repositories and read their visibility |
-| Contents: write | Download the docs, open proposal branches, and commit synced docs |
+| Contents: write | Download the docs and code repositories' docs, and open proposal branches |
 | Pull requests: write | Open docs pull requests |
 
 It subscribes to `push` and `repository` events. The app is private: only the account that created it can install it.
