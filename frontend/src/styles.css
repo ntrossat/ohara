@@ -58,7 +58,6 @@
   --topbar-height: 72px;
   --menu-width: 280px;
   --content-width: 720px;
-  --toc-width: 220px;
   --page-max: 1440px;
 
   /* Motion */
@@ -715,7 +714,6 @@ button.nav-folder:hover .nav-toggle {
 .prose {
   flex: 1 1 auto;
   min-width: 0;
-  max-width: var(--content-width);
   color: var(--text);
   font: 400 var(--size-body) / 1.75 var(--sans);
 }
@@ -989,59 +987,8 @@ button.nav-folder:hover .nav-toggle {
   font: 400 20px / 1.2 var(--serif);
 }
 
-/* On this page */
-
-.toc {
-  flex: 0 0 var(--toc-width);
-  margin-left: auto;
-  position: sticky;
-  top: calc(var(--topbar-height) + var(--space-12));
-  align-self: start;
-}
-
-.toc-label {
-  margin: var(--space-1) 0 var(--space-3);
-  color: var(--muted);
-  font: 400 var(--size-label) var(--mono);
-}
-
-.toc ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-left: var(--border);
-}
-
-.toc a {
-  display: block;
-  margin-left: -1px;
-  padding: 6px 0 6px 14px;
-  border-left: 1px solid transparent;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.4;
-  text-decoration: none;
-}
-
-.toc a:hover {
-  color: var(--ink);
-}
-
-.toc a.active {
-  border-left-color: var(--clay);
-  color: var(--ink);
-}
-
 .sidebar-account {
   display: none;
-}
-
-/* Tablets: drop the table of contents */
-
-@media (max-width: 1279.98px) {
-  .toc {
-    display: none;
-  }
 }
 
 /* Phones */

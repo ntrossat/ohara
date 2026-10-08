@@ -18,7 +18,7 @@ The website's design lives in `frontend/src/styles.css`. Its first block defines
 | `--serif`, `--sans`, `--mono` | Title, interface, and code typefaces |
 | `--size-*`, `--space-*` | Type sizes and the 4px spacing scale |
 | `--radius-*`, `--border` | Shapes |
-| `--topbar-height`, `--menu-width`, `--content-width`, `--toc-width`, `--page-max` | Layout |
+| `--topbar-height`, `--menu-width`, `--content-width`, `--page-max` | Layout |
 | `--ease`, `--duration` | Motion |
 
 Change the tokens to rebrand the whole site. The logo is drawn in `Mark.tsx`. Fonts are bundled with `@fontsource` packages, so the site makes no request to a font service.

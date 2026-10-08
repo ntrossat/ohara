@@ -12,7 +12,6 @@ import { readingOrder, trail } from "./nav";
 
 type Props = { status: Extract<Status, { configured: true }> };
 type Loaded = { path: string; page: Page | null };
-type Heading = { id: string; text: string };
 
 export default function Docs({ status }: Props) {
   const location = useLocation();
@@ -20,12 +19,10 @@ export default function Docs({ status }: Props) {
   const [nav, setNav] = useState<NavNode[]>([]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [headings, setHeadings] = useState<Heading[]>([]);
   const [query, setQuery] = useState("");
   const [unreachable, setUnreachable] = useState(false);
   // Folders start folded; the ones leading to the current page unfold.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const article = useRef<HTMLElement>(null);
 
   function toggle(folder: string, open = !expanded.has(folder)) {
     const next = new Set(expanded);
@@ -58,11 +55,6 @@ export default function Docs({ status }: Props) {
   useEffect(() => {
     if (!loaded) return;
     document.title = loaded.page ? `${loaded.page.title} – ${status.repo}` : status.repo;
-    const found = [...(article.current?.querySelectorAll("h2[id]") ?? [])].map((h) => ({
-      id: h.id,
-      text: h.textContent ?? "",
-    }));
-    setHeadings(found);
     const target = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
     if (target) target.scrollIntoView();
     else window.scrollTo(0, 0);
@@ -140,7 +132,7 @@ export default function Docs({ status }: Props) {
       <main className="content">
         {loaded && (
           <>
-            <article ref={article} key={loaded.path} className="prose">
+            <article key={loaded.path} className="prose">
               {loaded.path && (
                 <p className="breadcrumb">
                   {trail(nav, loaded.path).map((crumb, i) => (
@@ -193,7 +185,6 @@ export default function Docs({ status }: Props) {
                 </footer>
               )}
             </article>
-            <Toc headings={headings} />
           </>
         )}
       </main>
@@ -312,43 +303,6 @@ function Tree({ nodes, expanded, onToggle, nested }: TreeProps) {
         ),
       )}
     </ul>
-  );
-}
-
-function Toc({ headings }: { headings: Heading[] }) {
-  const [active, setActive] = useState("");
-
-  useEffect(() => {
-    if (!headings.length) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).map((e) => e.target.id);
-        if (visible.length) setActive(visible[0]);
-      },
-      { rootMargin: "-80px 0px -70% 0px" },
-    );
-    headings.forEach((h) => {
-      const el = document.getElementById(h.id);
-      if (el) observer.observe(el);
-    });
-    setActive(headings[0].id);
-    return () => observer.disconnect();
-  }, [headings]);
-
-  if (headings.length < 2) return <aside className="toc" />;
-  return (
-    <aside className="toc" aria-label="On this page">
-      <p className="toc-label">on this page</p>
-      <ul>
-        {headings.map((h) => (
-          <li key={h.id}>
-            <a href={`#${h.id}`} className={h.id === active ? "active" : undefined}>
-              {h.text}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </aside>
   );
 }
 
