@@ -55,6 +55,7 @@ In Claude Code, the MCP server's prompts appear as commands:
 | `stale_pages` | Pages that may be out of date, with the reasons |
 | `check_repository` | Whether the GitHub App is installed on a code repository, where to add it if not, and which of its docs are synced |
 | `propose_change` | Opens pull requests with new or changed pages |
+| `import_docs` | The steps of `/ohara:ingest`, so chat apps import docs the same way |
 
 ## Propose changes
 

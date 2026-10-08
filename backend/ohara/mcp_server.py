@@ -412,6 +412,13 @@ def ingest() -> str:
     return fill(INGEST_PROMPT)
 
 
+@server.tool()
+def import_docs() -> str:
+    """Call this first when the user asks to import, migrate, or copy documentation from other tools (Confluence,
+    Jira, Google Drive, GitHub, files, URLs) into Ohara. Returns the steps to follow, then follow them."""
+    return fill(INGEST_PROMPT)
+
+
 _handler = None
 
 

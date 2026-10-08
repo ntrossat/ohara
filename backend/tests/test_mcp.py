@@ -406,6 +406,13 @@ def test_ingest_prompt_treats_sources_as_untrusted(mcp, configure):
     assert REPO in text and "untrusted" in text and "propose_change" in text
 
 
+def test_import_docs_tool_returns_the_ingest_steps(mcp, configure):
+    configure(private=False)
+    answer = result(call(mcp, "import_docs"))
+    assert answer["isError"] is False
+    assert REPO in answer["content"][0]["text"] and "untrusted" in answer["content"][0]["text"]
+
+
 # Repository connection
 
 INSTALLATION = {"id": 42, "account": {"login": "acme"}, "html_url": "https://github.com/organizations/acme/settings/installations/42"}

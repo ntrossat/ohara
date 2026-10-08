@@ -52,6 +52,7 @@ Streamable HTTP, stateless, at `/mcp`. Callers send `Authorization: Bearer` with
 | `stale_pages` | | Stale pages and their reasons |
 | `check_repository` | `repository` (`owner/name`) | `connected`, `reason`, `settings_url`, synced `docs` paths, `synced_folder` |
 | `propose_change` | `title`, `description`, `pages` (`path`, `markdown`), `project`, `branch` | The pull request URLs, one per line |
+| `import_docs` | None | The `ingest` prompt's steps, for clients without prompts, such as chat apps |
 
 `check_repository` and `propose_change` need a signed-in caller. `propose_change` also needs write access to each repository the pages go to.
 
