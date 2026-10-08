@@ -162,7 +162,13 @@ class PageChange(BaseModel):
 
 @server.tool()
 async def propose_change(
-    title: str, description: str, pages: list[PageChange], ctx: Context, project: str = "", branch: str = ""
+    title: str,
+    description: str,
+    pages: list[PageChange],
+    ctx: Context,
+    project: str = "",
+    branch: str = "",
+    pull_request: str = "",
 ) -> str:
     """Propose documentation changes as a pull request for a human to review and merge.
 
@@ -178,6 +184,9 @@ async def propose_change(
     Ohara then commits on the "project/branch" branch of the docs repository, and adds to its open pull request
     if there is one. Returns the pull request URL: put it in the code pull request's description so its
     reviewers see the docs changes.
+
+    Without a code branch, as in a chat, pass the URL of a pull request proposed earlier in the conversation to
+    revise it while it is open, instead of opening a new one.
 
     Pages under apps/ are synced from code repositories and can't be proposed: edit their source file in that
     repository instead, in the same change as the code.
@@ -208,7 +217,11 @@ async def propose_change(
     body = f"{description}\n\n---\nProposed through Ohara by @{login}."
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
-        docs_branch = code_branch(project, branch) or branch_for(title)
+        docs_branch = (
+            code_branch(project, branch)
+            or await revised_branch(token, repo["full_name"], pull_request)
+            or branch_for(title)
+        )
         return await github.open_pull_request(token, repo["full_name"], repo["default_branch"], docs_branch, files, title, body)
     except httpx.HTTPStatusError as error:
         if error.response.status_code == 403:
@@ -225,6 +238,17 @@ def code_branch(project: str, branch: str) -> str | None:
     project = project.strip().rstrip("/").rsplit("/", 1)[-1]
     parts = [re.sub(r"[^A-Za-z0-9_-]+", "-", part).strip("-") for part in f"{project}/{branch}".split("/")]
     return "/".join(parts) if project.strip() and branch.strip() and all(parts) else None
+
+
+async def revised_branch(token: str, full_name: str, pull_request: str) -> str | None:
+    """The branch of the open docs pull request to revise, given as its URL or number, or None."""
+    if not pull_request.strip():
+        return None
+    url = rf"(?:https?://github\.com/{re.escape(full_name)}/pull/)?#?(\d+)/?"
+    match = re.fullmatch(url, pull_request.strip(), re.IGNORECASE)
+    if not match:
+        raise ToolError(f"{pull_request} is not a pull request of {full_name}")
+    return await github.pull_branch(token, full_name, int(match[1]))
 
 
 def branch_for(title: str) -> str:
@@ -378,7 +402,8 @@ lives in the {repo} repository. Every page you import goes through a pull reques
    maintainer), and covers ("owner/repo:pattern") when the page describes code.
 
 6. Propose the pages with propose_change, one pull request per folder or topic so each stays easy to review. The
-   description lists each page with its sources (links), and the security notes from step 4.
+   description lists each page with its sources (links), and the security notes from step 4. To change a page
+   you already proposed, pass its pull request URL as pull_request, so the change goes to that pull request.
 
 7. Report the pull request URLs, the sources you skipped and why, and what you removed in step 4.
 """

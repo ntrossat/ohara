@@ -334,6 +334,43 @@ def test_proposal_adds_to_the_open_pull_request_of_its_branch(mcp, configure):
 
 
 @respx.mock
+def test_proposal_from_a_chat_revises_its_open_pull_request(mcp, configure):
+    configure(private=False)
+    ref, put_guide, _, pull = mock_proposal()
+    head = {"ref": "ohara/document-the-deploy-freeze-abc123", "repo": {"full_name": REPO}}
+    respx.get(f"{REPO_URL}/pulls/5").mock(return_value=httpx.Response(200, json={"state": "open", "head": head}))
+    find = respx.get(f"{REPO_URL}/pulls").mock(
+        return_value=httpx.Response(200, json=[{"number": 5, "html_url": "https://github.com/acme/handbook/pull/5"}])
+    )
+    respx.post(f"{REPO_URL}/issues/5/comments").mock(return_value=httpx.Response(201, json={}))
+    url = "https://github.com/acme/handbook/pull/5"
+    answer = result(call(mcp, "propose_change", token="ghp_1", pull_request=url, **PROPOSAL))
+    assert answer["structuredContent"]["result"] == url
+    assert find.calls.last.request.url.params["head"] == "acme:ohara/document-the-deploy-freeze-abc123"
+    assert json.loads(put_guide.calls.last.request.content)["branch"] == head["ref"]
+    assert not ref.called and not pull.called
+
+
+@respx.mock
+def test_proposal_opens_a_new_pull_request_when_the_revised_one_is_closed(mcp, configure):
+    configure(private=False)
+    ref, _, _, pull = mock_proposal()
+    head = {"ref": "ohara/old", "repo": {"full_name": REPO}}
+    respx.get(f"{REPO_URL}/pulls/5").mock(return_value=httpx.Response(200, json={"state": "closed", "head": head}))
+    assert result(call(mcp, "propose_change", token="ghp_1", pull_request="5", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")
+    assert json.loads(ref.calls.last.request.content)["ref"].startswith("refs/heads/ohara/document-the-deploy-freeze-")
+
+
+@respx.mock
+def test_proposal_rejects_a_pull_request_of_another_repository(mcp, configure):
+    configure(private=False)
+    _, _, _, pull = mock_proposal()
+    other = "https://github.com/acme/other/pull/5"
+    assert result(call(mcp, "propose_change", token="ghp_1", pull_request=other, **PROPOSAL))["isError"] is True
+    assert not pull.called
+
+
+@respx.mock
 def test_proposal_restarts_a_branch_left_from_a_closed_pull_request(mcp, configure):
     configure(private=False)
     ref, _, _, pull = mock_proposal()

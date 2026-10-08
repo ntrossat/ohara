@@ -232,6 +232,17 @@ async def open_pull_request(token: str, full_name: str, base: str, branch: str, 
     return r.json()["html_url"]
 
 
+async def pull_branch(token: str, full_name: str, number: int) -> str | None:
+    """The branch of an open pull request of the repository, or None when it is closed or comes from a fork."""
+    r = await client().get(f"{API}/repos/{full_name}/pulls/{number}", headers=auth(token))
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    pull = r.json()
+    same_repo = (pull["head"].get("repo") or {}).get("full_name") == full_name
+    return pull["head"]["ref"] if pull["state"] == "open" and same_repo else None
+
+
 async def find_pull(token: str, full_name: str, branch: str) -> dict | None:
     """The number and URL of the open pull request of a branch, if any."""
     params = {"head": f"{full_name.split('/')[0]}:{branch}", "state": "open"}
