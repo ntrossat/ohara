@@ -394,6 +394,7 @@ function languageOf(children: ReactNode): string {
   return /language-([\w-]+)/.exec(className)?.[1] ?? "";
 }
 
+const VIDEO = /\.(mp4|webm|mov)$/i;
 const remarkPlugins = [remarkGfm];
 const rehypePlugins: Options["rehypePlugins"] = [rehypeSlug, [rehypeHighlight, { detect: false }]];
 
@@ -412,6 +413,10 @@ const Markdown = memo(function Markdown({ page }: { page: Page }) {
         },
         img({ src = "", alt = "", node: _node, ...rest }) {
           const link = typeof src === "string" ? resolveLink(page.file, src) : null;
+          // ![alt](clip.mp4) plays the video once, silently, without controls.
+          if (link && VIDEO.test(link.href)) {
+            return <video src={link.href} aria-label={alt} autoPlay muted playsInline />;
+          }
           return <img src={link?.href} alt={alt} loading="lazy" {...rest} />;
         },
         pre({ children }) {

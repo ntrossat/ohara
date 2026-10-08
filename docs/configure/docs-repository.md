@@ -35,7 +35,7 @@ onboarding/               # for new hires
 
 ## Links and images
 
-Link between pages with relative paths to the Markdown files, such as `[style guide](../design/style-guide.md)`. Images and other files work the same way: `![Logo](logo.svg)`.
+Link between pages with relative paths to the Markdown files, such as `[style guide](../design/style-guide.md)`. Images and other files work the same way: `![Logo](logo.svg)`. A video (`mp4`, `webm`, or `mov`) uses the image syntax too, `![Demo](demo.mp4)`, and plays once, muted, without controls.
 
 ## Freshness
 
