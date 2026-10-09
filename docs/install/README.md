@@ -10,7 +10,7 @@ Ohara runs as one Docker container. Setup takes about five minutes and happens i
 
 - Docker with Docker Compose.
 - A GitHub account or organization on github.com that owns the docs repository, and permission to create a GitHub App there. GitHub Enterprise Server is not supported.
-- A docs repository on GitHub with at least one commit, such as a `README.md`.
+- A docs repository on GitHub. It can be empty: Ohara shows how to start.
 - For webhooks, sign-in for coding assistants and chat apps, and secure cookies: an `https://` address that GitHub can reach. A local run works without it, with the limits listed below.
 
 Ohara is light: a small server and a SQLite database. It holds each repository download in memory while it reads it, so give it memory for the largest repository it reads, plus a margin.

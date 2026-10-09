@@ -23,7 +23,10 @@ Back up the volume. Stop the container first, or copy the database with SQLite's
 
 ```bash
 docker compose exec ohara python -c "import sqlite3; sqlite3.connect('/data/ohara.db').backup(sqlite3.connect('/data/backup.db'))"
+docker compose cp ohara:/data/backup.db ./ohara-backup.db
 ```
+
+The `docs/` folder needs no backup: Ohara downloads it again on start.
 
 The docs themselves are in GitHub, so a lost volume costs the setup, the sign-ins, and the stale flags from code changes. To start again, delete the old GitHub App on GitHub, since setup creates a new one with the same name, then open the setup page.
 
