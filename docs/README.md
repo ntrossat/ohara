@@ -1,6 +1,6 @@
 # Ohara
 
-**One central place for all enterprise knowledge. AI-generated, human-controlled.**
+**One central place for all enterprise knowledge. AI keeps your docs up to date. You approve every change.**
 
 Ohara is an open-source documentation manager. It keeps your documentation and engineering guidelines in one GitHub repository, serves them to people on a website and to AI coding assistants through MCP, and keeps them up to date with every code change. AI proposes each update. A human approves it.
 

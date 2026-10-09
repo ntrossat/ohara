@@ -1,6 +1,6 @@
 # Ohara — One place for all company knowledge, kept up to date by AI
 
-**AI-generated, human-controlled.**
+**AI keeps your docs up to date. You approve every change.**
 
 Ohara is an open-source documentation manager. It gathers your docs and engineering guidelines in one GitHub repository, gives every coding assistant the same guidelines, and updates the docs with each code change, through pull requests a human approves.
 
