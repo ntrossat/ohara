@@ -49,7 +49,7 @@ Open `OHARA_URL`. The setup page creates a GitHub App: install it on your docs r
 claude mcp add --transport http ohara <OHARA_URL>/mcp
 ```
 
-The full documentation is in [`docs/`](docs/README.md): install, configure, use, and how it works inside.
+The full documentation is at [ohara.trossat.com/docs](https://ohara.trossat.com/docs): install, configure, use, and how it works inside.
 
 ## Contributing
 
