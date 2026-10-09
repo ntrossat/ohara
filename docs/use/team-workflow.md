@@ -1,5 +1,6 @@
 ---
 covers: [ntrossat/ohara:backend/ohara/mcp_server.py]
+verified: 2026-10-09
 ---
 
 # Team workflow

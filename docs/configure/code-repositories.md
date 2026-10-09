@@ -1,5 +1,6 @@
 ---
 covers: [ntrossat/ohara:backend/ohara/appdocs.py, ntrossat/ohara:backend/ohara/appconfig.py, ntrossat/ohara:backend/ohara/freshness.py]
+verified: 2026-10-09
 ---
 
 # Code repositories

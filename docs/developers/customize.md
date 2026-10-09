@@ -1,5 +1,6 @@
 ---
 covers: [ntrossat/ohara:frontend/src/styles.css, ntrossat/ohara:backend/ohara/mcp_server.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py]
+verified: 2026-10-09
 ---
 
 # Customize
