@@ -6,8 +6,6 @@ covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/fres
 
 Ohara is an open-source documentation manager. It serves the Markdown docs of one GitHub repository to people on a website and to AI agents through MCP. AI proposes every change as a pull request, and a human merges it.
 
-![The Ohara docs reader](screenshot.jpg)
-
 ## How it works
 
 ```mermaid
