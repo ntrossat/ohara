@@ -8,14 +8,7 @@ Ohara is an open-source documentation manager. It serves the Markdown docs of on
 
 ## How it works
 
-```mermaid
-flowchart LR
-  people([People]) -- website --> ohara[Ohara]
-  agents([AI agents]) -- MCP --> ohara
-  ohara -- GitHub App --> docs[Docs repository]
-  ohara -- GitHub App --> code[Code repositories]
-  code -- pushes flag stale pages --> ohara
-```
+![How Ohara works](overview.svg)
 
 1. **Docs repository.** Plain Markdown files in one GitHub repository are the source of truth. The folder tree is the menu, and a page's first heading is its title. See [Docs repository](configure/docs-repository.md).
 2. **Two ways to read.** The website at `OHARA_URL` is for people. The MCP server at `OHARA_URL/mcp` is for AI agents. Both serve the same pages with the same access rules.

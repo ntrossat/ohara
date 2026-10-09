@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 472" width="760" height="472" role="img" aria-label="Browsers reach the React app and /api/* in main.py, MCP clients reach /mcp. Both use the shared modules, which store state in the /data volume through db.py and call GitHub through github.py. GitHub sends webhooks back to the API.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#a6a39a"/>
+    </marker>
+    <style>
+      .panel { fill: #1c1b19; stroke: #2c2b28; }
+      .process { fill: #141413; stroke: #3d3b37; stroke-dasharray: 4 4; }
+      .node { fill: #2a2926; stroke: #3d3b37; stroke-width: 1.5; }
+      .main { fill: #2a2926; stroke: #d97757; stroke-width: 1.5; }
+      .edge { fill: none; stroke: #a6a39a; stroke-width: 1.5; marker-end: url(#arrow); }
+      .title { fill: #faf9f5; font: 600 15px Manrope, "Manrope Variable", system-ui, sans-serif; text-anchor: middle; }
+      .sub { fill: #a6a39a; font: 12px "JetBrains Mono", ui-monospace, monospace; text-anchor: middle; }
+      .label { fill: #a6a39a; font: 12px "JetBrains Mono", ui-monospace, monospace; }
+      .clay { fill: #d97757; }
+    </style>
+  </defs>
+  <rect class="panel" x="0.5" y="0.5" width="759" height="471" rx="14"/>
+
+  <rect class="node" x="160" y="24" width="160" height="44" rx="22"/>
+  <text class="title" x="240" y="51">Browser</text>
+  <rect class="node" x="480" y="24" width="160" height="44" rx="22"/>
+  <text class="title" x="560" y="51">MCP client</text>
+
+  <rect class="process" x="80" y="100" width="640" height="232" rx="12"/>
+  <circle class="clay" cx="100" cy="120" r="4"/>
+  <text class="label" x="112" y="124">FastAPI process</text>
+
+  <rect class="main" x="120" y="140" width="240" height="64" rx="10"/>
+  <text class="title" x="240" y="167">React app · /api/*</text>
+  <text class="sub" x="240" y="187">main.py</text>
+
+  <rect class="main" x="440" y="140" width="240" height="64" rx="10"/>
+  <text class="title" x="560" y="167">MCP server · /mcp</text>
+  <text class="sub" x="560" y="187">mcp_server.py · oauth.py</text>
+
+  <rect class="node" x="120" y="244" width="560" height="64" rx="10"/>
+  <text class="title" x="400" y="271">Sign-in, docs, freshness, code docs sync</text>
+  <text class="sub" x="400" y="291">sessions.py · docs.py · freshness.py · appdocs.py</text>
+
+  <rect class="node" x="120" y="380" width="240" height="64" rx="10"/>
+  <text class="title" x="240" y="407">GitHub</text>
+  <text class="sub" x="240" y="427">docs and code repositories</text>
+
+  <rect class="node" x="440" y="380" width="240" height="64" rx="10"/>
+  <text class="title" x="560" y="407">/data volume</text>
+  <text class="sub" x="560" y="427">ohara.db · docs snapshot</text>
+
+  <path class="edge" d="M240 68V138"/>
+  <path class="edge" d="M560 68V138"/>
+  <path class="edge" d="M240 204V242"/>
+  <path class="edge" d="M560 204V242"/>
+  <path class="edge" d="M240 308V378"/>
+  <text class="label" x="252" y="350">github.py</text>
+  <path class="edge" d="M560 308V378"/>
+  <text class="label" x="572" y="350">db.py</text>
+  <path class="edge" d="M120 412H40V172H118"/>
+  <text class="label" x="50" y="404">webhooks</text>
+</svg>
