@@ -18,7 +18,7 @@ Ohara addresses three key challenges:
 
 Ohara's answer:
 
-- **One place for all knowledge.** Ohara imports existing docs from Jira, Confluence, GitHub, and Google Drive into a single GitHub repository. It is the single source of truth, readable by people on a website and by AI through MCP.
+- **One place for all knowledge.** A coding assistant or chat app imports existing docs from Jira, Confluence, GitHub, and Google Drive into a single GitHub repository, through Ohara. It is the single source of truth, readable by people on a website and by AI through MCP.
 - **Shared guidelines for every developer and every project.** Architects write the guidelines once. `/ohara:init` connects any project's coding assistant to them in one command. Every assistant, in every repository, follows the same rules, and an update reaches everyone right away.
 - **Docs that stay current.** Assistants propose doc updates with each code change, in one docs pull request per code branch. Stale pages are flagged automatically.
 - **Humans approve every change.** AI writes the docs, and people review them.
@@ -60,7 +60,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 ### Freshness
 - Each page can name its owner, the date a human last verified it, and the code it describes
-- Pages not verified for six months are flagged as stale
+- Pages verified more than six months ago are flagged as stale
 - Pages are flagged when the code they describe changes
 - AI assistants see which pages are stale and propose updates for review
 
@@ -79,14 +79,14 @@ Every piece of documentation is updated by AI and approved by a human.
 - Assistants update technical documentation
 
 ### AI-powered ingestion
-- A Claude agent imports existing documentation from external sources through MCP:
+- An AI assistant imports existing documentation from external sources, with its own connectors, through Ohara's MCP server:
   - Jira
   - Confluence
   - GitHub
   - Google Drive
   - and more
 - Imported content is submitted as pull requests for review
-- Security and prompt injection review
+- The assistant removes secrets and prompt injections, and a human reviews every pull request
 
 ### Project onboarding
 - An MCP command configures an existing project to use the main Ohara repository as its documentation and guideline source
@@ -123,7 +123,7 @@ Every piece of documentation is updated by AI and approved by a human.
 
 The full documentation is in [`docs/`](docs/README.md): what Ohara does, how to install, configure, and use it, and how it works inside.
 
-1. Set `OHARA_URL` to the address people will use to open Ohara (see `.env.example`). It can include a path, such as `https://acme.com/docs`.
+1. Clone this repository, copy `.env.example` to `.env`, and set `OHARA_URL` to the address people will use to open Ohara. It can include a path, such as `https://acme.com/docs`.
 2. Run `docker compose up -d`.
 3. Open Ohara, create the GitHub App from the setup page, and install it on your docs repository and your code repositories. Then choose the docs repository in Ohara.
 
@@ -147,7 +147,7 @@ claude mcp add --transport http ohara <OHARA_URL>/mcp
 
 Then run `/ohara:init` in the project to set it up.
 
-For CI and headless agents, send a GitHub token instead: `--header "Authorization: Bearer <token>"`.
+For CI, headless agents, and proposals on a public docs repository, send a GitHub token: `--header "Authorization: Bearer <token>"`.
 
 Assistants read pages and propose changes. A proposal from a code branch opens one docs pull request, and later proposals from the same branch add to it. Other proposals open their own pull request. A human reviews and merges each one. Proposing requires a signed-in user or a token with write access to the repository.
 
@@ -155,7 +155,7 @@ Assistants read pages and propose changes. A proposal from a code branch opens o
 
 ## Contributing
 
-Contributions are welcome. Open an issue or submit a pull request.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), and report security issues as described in [SECURITY.md](SECURITY.md).
 
 ---
 

@@ -8,7 +8,7 @@ Ohara supports one loop: guidelines guide the code, and the code keeps the docs 
 
 ## The loop
 
-1. **Architects write the guidelines** in the docs repository, through pull requests like any other change. `CODEOWNERS` keeps the guideline folders under their review.
+1. **Architects write the guidelines** in the docs repository, through pull requests like any other change. A GitHub `CODEOWNERS` file can keep the guideline folders under their review.
 2. **The coding assistant plans** each feature: it reads the guidelines and docs that apply, proposes an architecture, and names the guidelines it relies on.
 3. **Architects and engineers review the plan.**
 4. **The assistant builds** from the approved plan, then checks the change against the guidelines and fixes what doesn't follow them.
@@ -30,7 +30,7 @@ Ohara supports one loop: guidelines guide the code, and the code keeps the docs 
 
 - Run `/ohara:update` after a change that touched behavior the docs describe.
 - Add `covers` to project pages, so pushes flag them when their code changes.
-- Ask an assistant to go through `stale_pages` from time to time. A stale page that still matches the code only needs to be proposed unchanged: merging it verifies it.
+- Ask an assistant to go through `stale_pages` from time to time. A stale page that still matches the code only needs to be proposed unchanged: merging it verifies it. A synced page under `apps/` is verified by changing its `verified` date in the code repository.
 
 ## Bring existing docs in
 

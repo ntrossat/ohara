@@ -46,11 +46,11 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 |---|---|
 | `main.tsx` | Loads the fonts and styles, and mounts the app under the path from `<meta name="ohara-base">` |
 | `App.tsx` | Reads `/api/status` and picks the screen |
-| `api.ts` | API types, the base path, and `get`, which reloads the page on 401 or 403 so the sign-in screen shows |
+| `api.ts` | API types, the base path, and `get` and `post`, which reload the page on 401 or 403 so the sign-in screen shows |
 | `Setup.tsx` | The setup page |
 | `Gate.tsx` | Sign-in and "no access" screens, and `Unreachable` when the server doesn't answer |
 | `Consent.tsx` | Approving an MCP client |
-| `Docs.tsx` | The docs reader: menu with a filter, breadcrumbs, page, table of contents, previous and next links, edit link, code blocks with a copy button, and sign out |
+| `Docs.tsx` | The docs reader: menu with a title filter (⌘K or Ctrl K), breadcrumbs, page, previous and next links, edit link, code blocks with a copy button, and sign out |
 | `nav.ts` | The reading order for previous and next links, and the breadcrumb trail |
 | `links.ts` | Resolves relative Markdown links to site routes and file URLs |
 | `Mark.tsx` | The Ohara logo |
@@ -75,7 +75,7 @@ Nothing is kept in process memory apart from caches. `ohara.db` holds JSON recor
 | `drift` | Stale flags from code changes, per page file | 1 year |
 | `app` | The last sync of each code repository | Never |
 
-The `pages` table is an SQLite FTS5 index of the snapshot, rebuilt on each update.
+The `pages` table is an SQLite FTS5 index of the snapshot, rebuilt on each update. It uses the Porter stemmer and weighs titles ten times more than the text. Pages hidden by `.oharaignore` are not indexed. The website's menu filter matches titles only: full-text search is for MCP clients.
 
 ## Docs updates
 
@@ -92,7 +92,7 @@ The same runs on each start and on `repository` events, which also refresh the r
 1. Ohara posts a manifest to GitHub with the app's callback URLs, webhook, events, and permissions. The admin confirms on GitHub.
 2. GitHub redirects to `/api/setup/callback`. Ohara checks the `state` it sent, which works once and for 10 minutes, and exchanges the code for the app's credentials (ID, slug, client ID and secret, webhook secret, private key).
 3. The admin installs the app. GitHub redirects to `/api/setup/installed`, and Ohara saves the installation.
-4. The admin picks the docs repository. Then the setup routes lock.
+4. The admin picks the docs repository, or Ohara picks it when the installation has only one. Then the setup routes lock.
 
 ### Website sign-in
 
@@ -124,13 +124,14 @@ To check access, Ohara reads the docs repository with the user's own token. A us
 | Branch | Holds |
 |---|---|
 | `<project>/<branch>` | Docs repository pages proposed from that code branch |
-| `ohara/<slug>-<random>` | Every docs repository page, when no project and branch are given |
+| The branch of the `pull_request` argument | A revision of an open pull request, when no project and branch are given. A closed pull request, or one from a fork, gets a new branch instead |
+| `ohara/<slug>-<random>` | Every other proposal. The slug is the title in lowercase, other characters as `-`, cut to 40 characters |
 
-Characters other than letters, digits, `_` and `-` in branch names become `-`. When a branch has an open pull request, the commits go to it with a comment that holds the title and description. A branch left from a closed pull request is reset to the default branch first, so it holds only the new change.
+In `<project>/<branch>`, characters other than letters, digits, `_` and `-` become `-`. When a branch has an open pull request, the commits go to it with a comment that holds the title and description. A branch left from a closed pull request is reset to the default branch first, so it holds only the new change.
 
 ## Freshness flags
 
-When a code repository pushes to its default branch, the webhook lists the changed files with GitHub's compare API (or the push's commits, for a new branch), syncs the repository's docs when they changed, and matches the files against each page's `covers`. Each match records a flag with the date, the files, and a compare link, up to 20 per page. A flag holds a hash of the page's file: when the page changes, the flags are dropped.
+When a code repository pushes to its default branch, the webhook lists the changed files with GitHub's compare API (or the push's commits, for a new branch), syncs the repository's docs when they changed, and matches the files against each page's `covers`. Each match records a flag with the date, the files, and a compare link, up to 20 per page. A flag holds a hash of the page's file: once the page changes, its flags no longer count, and the next matching push starts a new list. Flags expire after a year.
 
 ## App docs sync
 

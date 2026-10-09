@@ -16,9 +16,9 @@ Ohara is an open-source documentation manager. It keeps your documentation and e
 
 ## What Ohara changes
 
-- **One source of truth.** All docs and guidelines live in one GitHub repository. Ohara imports existing content from other tools as pull requests.
+- **One source of truth.** All docs and guidelines live in one GitHub repository. A coding assistant or chat app imports existing content from other tools as pull requests.
 - **The same rules for every assistant.** Architects write the guidelines once. One command connects any project's coding assistant to them, and an update reaches every project at once.
-- **Docs that keep up with the code.** When code changes, the assistant proposes the matching doc update. Pages are flagged when the code they describe changes, or when their last check is more than six months old.
+- **Docs that keep up with the code.** When code changes, the assistant proposes the matching doc update. Pages are flagged when the code they describe changes, or when their `verified` date is more than six months old.
 - **Humans stay in control.** Every change is a pull request that a person reviews and merges.
 
 ## Who it helps
@@ -71,6 +71,8 @@ See [How Ohara works](concepts.md) for the details.
 | Connect code repositories | [Code repositories](configure/code-repositories.md) |
 | Control who reads the docs | [Access](configure/access.md) |
 | Connect a coding assistant | [Coding assistants](use/coding-assistants.md) |
+| Ask questions from claude.ai or ChatGPT | [Chat apps](use/chat-apps.md) |
 | Set up the team workflow | [Team workflow](use/team-workflow.md) |
 | Understand the internals | [Architecture](developers/architecture.md) |
 | Change or extend Ohara | [Customize](developers/customize.md) |
+| Contribute | [Development](developers/development.md) |
