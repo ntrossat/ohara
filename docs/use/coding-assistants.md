@@ -46,7 +46,7 @@ And in VS Code's `.vscode/mcp.json`:
 }
 ```
 
-Clients that support MCP OAuth sign in the same way as Claude Code. The `/ohara:*` commands need a client that shows MCP prompts. `/ohara:init` writes Claude Code files (`.claude/rules/ohara.md`, `.claude/settings.json`): with another assistant, copy `.claude/rules/ohara.md` into the file it reads, such as `AGENTS.md`.
+Clients that support MCP OAuth sign in the same way as Claude Code. The `/ohara:*` commands need a client that shows MCP prompts. `/ohara:init` writes the instructions to `.claude/rules/ohara.md` in Claude Code, and to an "Ohara instructions" section of `AGENTS.md` in other assistants.
 
 For claude.ai and ChatGPT, see [Chat apps](chat-apps.md).
 
@@ -57,7 +57,7 @@ Run `/ohara:init` in the project. The assistant:
 1. checks that the GitHub App is installed on the project's repository, and opens the installation settings on GitHub when it isn't. When the project keeps its own docs without a `.ohara.yml`, it offers to write one, so Ohara syncs them;
 2. finds the guidelines and docs that apply to the project, and notes the stale ones;
 3. adds the Ohara server to `.mcp.json`, so the whole team gets it;
-4. writes `.claude/rules/ohara.md`, which Claude Code loads like `CLAUDE.md`, with those pages and the workflow, and removes the "Ohara instructions" section an earlier setup left in `CLAUDE.md`;
+4. writes `.claude/rules/ohara.md`, which Claude Code loads like `CLAUDE.md` (other assistants: a section of `AGENTS.md`), with those pages and the workflow, and removes the "Ohara instructions" section an earlier setup left in `CLAUDE.md`;
 5. allows the read-only Ohara tools in `.claude/settings.json`, so only proposals ask for confirmation;
 6. offers to link the project docs to the code with `covers` entries, in one proposal;
 7. reports the files it wrote, the pages it linked, and whether the repository is connected.

@@ -15,7 +15,7 @@ Ohara supports one loop: guidelines guide the code, and the code keeps the docs 
 5. **The assistant updates the docs** in the same change: it edits the project's synced docs, and proposes every other affected page in one `propose_change`. The docs pull request links go in the code pull request's description.
 6. **Engineers review the code and its docs together,** and merge both pull requests.
 
-`/ohara:init` writes this loop into each project's `.claude/rules/ohara.md`, so every assistant follows it.
+`/ohara:init` writes this loop into each project's `.claude/rules/ohara.md` (`AGENTS.md` for other assistants), so every assistant follows it.
 
 ## Roles
 
