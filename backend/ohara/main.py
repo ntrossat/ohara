@@ -228,7 +228,7 @@ async def installed_repos(app_credentials: dict, installation_id: int) -> list[d
 
 async def choose_repository(repo: dict) -> None:
     store.update(repo=github.repo_summary(repo))
-    await safe_sync()
+    await startup()  # the docs, then the code repositories picked in the same installation
 
 
 def require_installed(settings: dict = Depends(require_unconfigured)) -> dict:

@@ -49,7 +49,7 @@ docs:
 Ohara then shows those docs under `apps/<repository name>/` on the website and through MCP. It downloads them into its own copy of the docs, and never commits them to the docs repository. It syncs them:
 
 - on each push to the default branch that changes them or `.ohara.yml`;
-- when the app is added to the repository, and on each Ohara start.
+- when the app is added to the repository, when the docs repository is chosen at setup, and on each Ohara start.
 
 | `.ohara.yml` | Synced |
 |---|---|

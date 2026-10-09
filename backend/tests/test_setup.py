@@ -117,6 +117,23 @@ def test_install_on_several_repositories_asks_for_the_docs_repository(client, ap
     assert (data_dir / "docs/README.md").read_text() == "# Welcome"
 
 
+@respx.mock
+def test_choosing_the_docs_repository_syncs_the_code_repositories(client, app_credentials, monkeypatch):
+    from ohara import main
+
+    calls = []
+
+    async def record(name):
+        calls.append(name)
+
+    monkeypatch.setattr(main, "safe_sync", lambda: record("docs"))
+    monkeypatch.setattr(main, "safe_sync_apps", lambda: record("apps"))
+    store.save({"app": app_credentials, "installation_id": 42})
+    mock_installation([{"full_name": REPO, "name": "handbook", "private": True, "default_branch": "main"}])
+    assert client.post("/api/setup/repository", json={"full_name": REPO}).json() == {"repo": REPO}
+    assert calls == ["docs", "apps"]
+
+
 def test_choosing_needs_an_installation(client, app_credentials):
     store.save({"app": app_credentials})
     assert client.get("/api/setup/repositories").status_code == 400
