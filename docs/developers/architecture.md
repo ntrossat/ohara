@@ -6,21 +6,14 @@ covers: [ntrossat/ohara:backend/ohara/*, ntrossat/ohara:frontend/src/*]
 
 Ohara is one FastAPI process that serves the React website, a JSON API, and an MCP server, and talks to GitHub through one GitHub App. All state is in a data volume.
 
-```text
-                 Browser                       MCP client
-                    |                               |
-                    v                               v
-  +-------------------------- FastAPI ----------------------------+
-  |  React app (static)   /api/*  (main.py)     /mcp (mcp_server) |
-  |                         |                       |             |
-  |   sessions.py  oauth.py  docs.py  freshness.py  appdocs.py    |
-  |                         |                                     |
-  |              db.py: /data/ohara.db     /data/docs (snapshot)  |
-  +-------------------------------+-------------------------------+
-                                  |  github.py (GitHub App)
-                                  v
-                    GitHub: docs repository, code repositories
-                    (webhooks back to /api/github/webhook)
+```mermaid
+flowchart TB
+  browser([Browser]) --> web["React app<br/>/api/* · main.py"]
+  agent([MCP client]) --> mcp["/mcp · mcp_server.py<br/>oauth.py"]
+  web & mcp --> core["sessions.py · docs.py<br/>freshness.py · appdocs.py"]
+  core --> data[("/data<br/>ohara.db · docs snapshot")]
+  core -- github.py --> github[GitHub<br/>docs and code repositories]
+  github -- webhooks --> web
 ```
 
 ## Backend modules
