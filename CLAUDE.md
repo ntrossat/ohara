@@ -18,7 +18,7 @@ Ohara (one central place for all enterprise knowledge) has a first version of th
 
 ## Layout
 
-- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the instance settings, `db.py` the SQLite database in the data volume (all state: settings, sessions, OAuth grants, the full-text search index), `mcp_server.py` the MCP server at `/mcp`, `oauth.py` the OAuth sign-in for MCP clients, `freshness.py` page owners, verified dates, and code-change flags, `appdocs.py` the sync of code repositories' docs into `apps/<repo>/` of the docs snapshot, `appconfig.py` their `.ohara.yml`, which a repository needs to be synced, `config.py` the environment configuration (`OHARA_URL`, its base path, the data directory). MCP tools: `list_pages`, `read_page`, `search`, `stale_pages`, `check_repository`, `propose_change`, `import_docs` (the `ingest` steps, for chat apps). MCP prompts (`/ohara:<name>` in Claude Code): `init` sets up a project (checks the GitHub App is installed on its repository and opens the installation settings if not, `.mcp.json`, a `CLAUDE.md` section with the guidelines, docs, and workflow, and read permissions for the Ohara tools); `update` proposes doc updates from the project's latest code changes; `review` reviews the project against the guidelines and docs; `ingest` imports existing docs from other tools as pull requests.
+- `backend/ohara/`: FastAPI app. `main.py` holds routes, `github.py` the GitHub App calls, `docs.py` the docs snapshot and navigation, `sessions.py` sign-in and access checks, `store.py` the instance settings, `db.py` the SQLite database in the data volume (all state: settings, sessions, OAuth grants, the full-text search index), `mcp_server.py` the MCP server at `/mcp`, `oauth.py` the OAuth sign-in for MCP clients, `freshness.py` page owners, verified dates, and code-change flags, `appdocs.py` the sync of code repositories' docs into `apps/<repo>/` of the docs snapshot, `appconfig.py` their `.ohara.yml`, which a repository needs to be synced, `config.py` the environment configuration (`OHARA_URL`, its base path, the data directory). MCP tools: `list_pages`, `read_page`, `search`, `stale_pages`, `check_repository`, `propose_change`, `import_docs` (the `ingest` steps, for chat apps). MCP prompts (`/ohara:<name>` in Claude Code): `init` sets up a project (checks the GitHub App is installed on its repository and opens the installation settings if not, `.mcp.json`, `.claude/rules/ohara.md` with the guidelines, docs, and workflow, and read permissions for the Ohara tools); `update` proposes doc updates from the project's latest code changes; `review` reviews the project against the guidelines and docs; `ingest` imports existing docs from other tools as pull requests.
 - `frontend/src/`: React app. `Setup.tsx` is the setup page, `Gate.tsx` the sign-in screen, `Consent.tsx` the page where a user approves an MCP client, `Docs.tsx` the docs reader, `styles.css` the design tokens and styles. The UI follows the brand guidelines, style guide, and UI kit in the `design/` folder of the project's docs repository.
 - The Docker image builds the frontend and serves it from FastAPI. All state lives in the `/data` volume: the docs snapshot and `ohara.db`. Nothing is kept in process memory, apart from caches.
 
@@ -64,29 +64,3 @@ Ohara is an open-source project. Never commit anything specific to one company, 
 - Never work on `main`. Create a branch before the first change, and merge it into `main` through a pull request.
 - Use Conventional Commits (`docs:`, `chore:`, …).
 - Keep `README.md` focused on principles and features. Implementation details, architecture diagrams, and tech stack tables were removed from it on purpose.
-
-## Ohara instructions
-
-Ohara, reached through the `ohara` MCP server in `.mcp.json`, is the source of truth for documentation and engineering guidelines. This project's own docs live in `docs/` and Ohara syncs them: update them in the same change as the code. Every other page lives in Ohara: propose changes to it, never add it to this repository.
-
-Guidelines:
-
-- `design`: index of the design pages, the `tokens.css` design tokens, the logo files, and the UI mockups.
-- `design/brand`: name, logo, colors, typefaces, and voice.
-- `design/style-guide`: design tokens (color, type, spacing, shapes, layout, motion), accessibility, and copy rules.
-- `design/ui-kit`: component and screen specs for the website.
-
-Project docs, in `docs/` (synced to `apps/ohara/`):
-
-- `docs/README.md`: what Ohara is and how it works, for engineers, and a glossary.
-- `docs/install/`: installing, setup, HTTPS, paths, and operating (data, updates, CD, troubleshooting).
-- `docs/configure/`: the docs repository layout, code repositories (covers, docs pull requests from a code branch, `.ohara.yml` sync), and access.
-- `docs/use/`: coding assistants, the `/ohara:*` commands, chat apps, and the team workflow.
-- `docs/developers/`: architecture, API, development, and customizing.
-
-Workflow:
-
-- Before planning a change, read the guidelines and docs that apply, and search Ohara for anything else relevant. Say when a page you rely on is stale.
-- Propose an architecture that follows the guidelines, and name the guidelines it relies on.
-- After the change, check it against the guidelines and fix what does not follow them.
-- Then update `docs/` in the same change, and propose updates to every other page the change affects in one `propose_change`, with the project `ohara` and the active git branch, so each code branch gets a single pull request to review. Put the docs pull request links in the code pull request's description.
