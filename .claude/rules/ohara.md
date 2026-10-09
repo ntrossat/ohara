@@ -4,6 +4,14 @@ Ohara, reached through the `ohara` MCP server in `.mcp.json`, is the source of t
 
 Guidelines:
 
+- `guidelines/principles`: product principles: beautiful, focused, simple by design, AI writes and humans approve, open source.
+- `guidelines/backend`: Python and FastAPI with `uv`: structure, style, state, requests and errors, external APIs.
+- `guidelines/frontend`: React, TypeScript, and Vite: structure, paths, styles, behavior, checks.
+- `guidelines/security`: access, tokens and secrets, requests, untrusted content, reporting.
+- `guidelines/testing`: what to test, how, and in CI.
+- `guidelines/git`: branches, pull requests, Conventional Commits, CI and CD.
+- `guidelines/writing-docs`: where docs live, format, and voice.
+- `references/fastapi`: the official FastAPI user guide.
 - `design`: index of the design pages, the `tokens.css` design tokens, the logo files, and the UI mockups.
 - `design/brand`: name, logo, colors, typefaces, and voice.
 - `design/style-guide`: design tokens (color, type, spacing, shapes, layout, motion), accessibility, and copy rules.
