@@ -4,8 +4,6 @@
 
 Ohara is an open-source documentation manager. Your docs and engineering guidelines live in one GitHub repository. People read them on a website, and AI agents read them through MCP. When the code changes, AI proposes the matching doc update as a pull request, and a human merges it.
 
-![The Ohara docs reader](docs/screenshot.jpg)
-
 ## Why Ohara
 
 - **Knowledge is scattered** across Confluence, Jira, Google Drive, GitHub, and Slack. Ohara imports it into one repository.
