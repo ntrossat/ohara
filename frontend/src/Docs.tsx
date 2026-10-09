@@ -315,12 +315,12 @@ function Empty({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function CodeBlock({ children, language }: { children: ReactNode; language: string }) {
+function CodeBlock({ children, language, source }: { children: ReactNode; language: string; source?: string }) {
   const pre = useRef<HTMLPreElement>(null);
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard.writeText(pre.current?.innerText ?? "");
+    await navigator.clipboard.writeText(source ?? pre.current?.innerText ?? "");
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -337,8 +337,58 @@ function CodeBlock({ children, language }: { children: ReactNode; language: stri
           {copied ? "copied" : "copy"}
         </button>
       </div>
-      <pre ref={pre}>{children}</pre>
+      {source === undefined ? <pre ref={pre}>{children}</pre> : children}
     </div>
+  );
+}
+
+/** Mermaid colors and type, from the design tokens. Mermaid needs literal values, not CSS variables. */
+function mermaidTheme() {
+  const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return {
+    darkMode: true,
+    background: token("--bg-2"),
+    fontFamily: token("--sans"),
+    fontSize: "14px",
+    primaryColor: token("--surface-3"),
+    primaryTextColor: token("--ink"),
+    primaryBorderColor: token("--clay"),
+    secondaryColor: token("--bg"),
+    tertiaryColor: token("--bg"),
+    lineColor: token("--muted"),
+    textColor: token("--text"),
+    clusterBkg: token("--bg"),
+    clusterBorder: token("--line"),
+    edgeLabelBackground: token("--bg-2"),
+  };
+}
+
+let diagrams = 0;
+
+/** A ```mermaid block drawn as a diagram. Mermaid loads only on pages that have one. Invalid source stays a code block. */
+function Diagram({ source }: { source: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    import("mermaid")
+      .then(async ({ default: mermaid }) => {
+        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: mermaidTheme() });
+        const { svg } = await mermaid.render(`diagram-${++diagrams}`, source);
+        if (current) setSvg(svg);
+      })
+      .catch(() => current && setFailed(true));
+    return () => {
+      current = false;
+    };
+  }, [source]);
+
+  if (failed) return <CodeBlock language="mermaid"><code>{source}</code></CodeBlock>;
+  return (
+    <CodeBlock language="mermaid" source={source}>
+      <div className="diagram" role="img" dangerouslySetInnerHTML={svg ? { __html: svg } : undefined} />
+    </CodeBlock>
   );
 }
 
@@ -346,6 +396,12 @@ function languageOf(children: ReactNode): string {
   const child = Array.isArray(children) ? children[0] : children;
   const className: string = (child as { props?: { className?: string } })?.props?.className ?? "";
   return /language-([\w-]+)/.exec(className)?.[1] ?? "";
+}
+
+/** The plain text of a hast node, such as the source of a code block. */
+function textOf(node: unknown): string {
+  const { value, children } = (node ?? {}) as { value?: string; children?: unknown[] };
+  return value ?? (children ?? []).map(textOf).join("");
 }
 
 const VIDEO = /\.(mp4|webm|mov)$/i;
@@ -373,8 +429,10 @@ const Markdown = memo(function Markdown({ page }: { page: Page }) {
           }
           return <img src={link?.href} alt={alt} loading="lazy" {...rest} />;
         },
-        pre({ children }) {
-          return <CodeBlock language={languageOf(children)}>{children}</CodeBlock>;
+        pre({ children, node }) {
+          const language = languageOf(children);
+          if (language === "mermaid") return <Diagram source={textOf(node)} />;
+          return <CodeBlock language={language}>{children}</CodeBlock>;
         },
         table({ node: _node, ...rest }) {
           return (

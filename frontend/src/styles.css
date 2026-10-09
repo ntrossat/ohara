@@ -919,6 +919,19 @@ button.nav-folder:hover .nav-toggle {
   line-height: 1.7;
 }
 
+.diagram {
+  display: flex;
+  justify-content: center;
+  min-height: 120px;
+  padding: var(--space-6);
+  overflow-x: auto;
+}
+
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
 .hljs-keyword {
   color: var(--clay);
 }

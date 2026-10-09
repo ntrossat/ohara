@@ -51,7 +51,7 @@ Patterns use shell wildcards: `*` matches any characters, including `/`, and `?`
 
 Link between pages with relative paths to the Markdown files, such as `[style guide](../design/style-guide.md)`. To link to a folder's page, link to its `README.md` or `index.md`: a link to the folder itself doesn't open. Images and other files work the same way: `![Logo](logo.svg)`. A video (`mp4`, `webm`, or `mov`) uses the image syntax too, `![Demo](demo.mp4)`, and plays once, muted, without controls.
 
-Pages are Markdown with GitHub's extensions, such as tables and task lists. Headings get anchors, so `api.md#errors` links to a section. Code blocks are highlighted when they name their language, such as ` ```python `. HTML in a page is not rendered.
+Pages are Markdown with GitHub's extensions, such as tables and task lists. Headings get anchors, so `api.md#errors` links to a section. Code blocks are highlighted when they name their language, such as ` ```python `. A ` ```mermaid ` block is drawn as a [Mermaid](https://mermaid.js.org) diagram, as on GitHub. HTML in a page is not rendered.
 
 ## Freshness
 
