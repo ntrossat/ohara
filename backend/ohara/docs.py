@@ -3,9 +3,13 @@
 The folder tree is the navigation. A page's title comes from front matter
 `title`, then its first `# ` heading, then its file name. Pages are
 sorted by title. Each snapshot is indexed for full-text search.
+
+A `.oharaignore` at the root lists folders and files to leave out of the navigation and search, one
+gitignore-style pattern per line. Their files are still served, so pages can embed them.
 """
 
 import asyncio
+import fnmatch
 import functools
 import io
 import re
@@ -19,6 +23,7 @@ import yaml
 from ohara import db
 
 INDEX_NAMES = ("index.md", "README.md")
+IGNORE_FILE = ".oharaignore"
 APPS = "apps"  # synced code repository docs, owned by Ohara rather than the docs repository
 lock = asyncio.Lock()  # one write to the snapshot at a time
 FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
@@ -58,15 +63,31 @@ def index_of(folder: Path) -> Path | None:
     return None
 
 
-def build_nav(root: Path, folder: Path | None = None) -> list[dict]:
+def ignore_patterns(root: Path) -> list[str]:
+    file = root / IGNORE_FILE
+    lines = file.read_text(errors="replace").splitlines() if file.is_file() else []
+    return [line.strip().strip("/") for line in lines if line.strip().strip("/") and not line.startswith("#")]
+
+
+def ignored(rel: str, patterns: list[str]) -> bool:
+    """Whether a path or one of its folders matches a pattern. A pattern without a slash matches a name at any depth."""
+    parts = rel.split("/")
+    prefixes = ["/".join(parts[:i]) for i in range(1, len(parts) + 1)]
+    return any(
+        any(fnmatch.fnmatch(name, pattern) for name in (prefixes if "/" in pattern else parts)) for pattern in patterns
+    )
+
+
+def build_nav(root: Path, folder: Path | None = None, patterns: list[str] | None = None) -> list[dict]:
     folder = folder or root
+    patterns = ignore_patterns(root) if patterns is None else patterns
     nodes = []
     for entry in folder.iterdir():
-        if entry.name.startswith("."):
-            continue
         rel = entry.relative_to(root).as_posix()
+        if entry.name.startswith(".") or ignored(rel, patterns):
+            continue
         if entry.is_dir():
-            children = build_nav(root, entry)
+            children = build_nav(root, entry, patterns)
             index = index_of(entry)
             if not children and not index:
                 continue
@@ -135,10 +156,11 @@ def page_path(rel: Path) -> str:
 
 
 def pages(root: Path) -> Iterator[tuple[str, str, dict]]:
-    """Every page of the snapshot as (page path, file relative to root, front matter)."""
+    """Every page of the snapshot outside .oharaignore, as (page path, file relative to root, front matter)."""
+    patterns = ignore_patterns(root)
     for file in sorted(root.rglob("*.md")) if root.exists() else []:
         rel = file.relative_to(root)
-        if not any(part.startswith(".") for part in rel.parts):
+        if not any(part.startswith(".") for part in rel.parts) and not ignored(rel.as_posix(), patterns):
             yield page_path(rel), rel.as_posix(), page_info(file)[0]
 
 

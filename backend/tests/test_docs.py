@@ -49,6 +49,21 @@ def test_folders_with_only_images_are_hidden(tmp_path):
     assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Guide"]
 
 
+def test_oharaignore_hides_folders_and_pages_but_keeps_their_files(tmp_path):
+    write(tmp_path, ".oharaignore", "# hidden from the menu\nresources/\ndrafts/*.md\nscratch.md\n")
+    write(tmp_path, "guide.md", "# Guide")
+    write(tmp_path, "resources/README.md", "# Resources")
+    write(tmp_path, "resources/video.mp4", "mp4")
+    write(tmp_path, "drafts/idea.md", "# Idea")
+    write(tmp_path, "team/scratch.md", "# Scratch")
+    write(tmp_path, "team/roles.md", "# Roles")
+
+    assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Guide", "Team"]
+    assert [path for path, _, _ in docs.pages(tmp_path)] == ["guide", "team/roles"]
+    assert docs.resolve_file(tmp_path, "resources/video.mp4")
+    assert docs.read_page(tmp_path, "resources")["title"] == "Resources"
+
+
 def test_pages_are_sorted_by_title(tmp_path):
     write(tmp_path, "a.md", "# Zulu")
     write(tmp_path, "z.md", "# Alpha")

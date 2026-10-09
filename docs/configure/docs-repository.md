@@ -4,7 +4,7 @@ covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/fres
 
 # Docs repository
 
-The docs repository holds plain Markdown files, with no config file. This page covers how Ohara turns them into a website.
+The docs repository holds plain Markdown files, with no required config file. This page covers how Ohara turns them into a website.
 
 ## Layout
 
@@ -18,6 +18,7 @@ The docs repository holds plain Markdown files, with no config file. This page c
 | The root `index.md` or `README.md` is the home page. With both, `index.md` wins | `README.md` at the root |
 | Files and folders starting with `.` are hidden | `.github/` |
 | Folders with no Markdown files are hidden | `assets/` with only images |
+| Folders and pages listed in an optional `.oharaignore` at the root are left out of the menu, search, and MCP listings. Their files still load where pages embed them, and their pages still open from a direct link. One gitignore-style pattern per line; a pattern without `/` matches a name at any depth | `resources/` |
 | `apps/` is reserved for docs synced from code repositories | `apps/api/` |
 
 A suggested layout:
