@@ -1,70 +1,62 @@
+---
+covers: [ntrossat/ohara:backend/ohara/docs.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py]
+---
+
 # Ohara
 
-**One central place for all enterprise knowledge. AI keeps your docs up to date. You approve every change.**
-
-Ohara is an open-source documentation manager. It keeps your documentation and engineering guidelines in one GitHub repository, serves them to people on a website and to AI coding assistants through MCP, and keeps them up to date with every code change. AI proposes each update. A human approves it.
+Ohara is an open-source documentation manager. It serves the Markdown docs of one GitHub repository to people on a website and to AI agents through MCP. AI proposes every change as a pull request, and a human merges it.
 
 ![The Ohara docs reader](screenshot.jpg)
 
-## The problem
-
-| Today | What it costs |
-|---|---|
-| Knowledge is spread across Confluence, Jira, Google Drive, GitHub, and Slack | People can't find the answer, or find three that disagree |
-| Each developer configures their coding assistant alone | Assistants follow different rules, so the code drifts apart across teams |
-| Docs fall behind the code | Nobody trusts the docs, so nobody reads or updates them |
-
-## What Ohara changes
-
-- **One source of truth.** All docs and guidelines live in one GitHub repository. A coding assistant or chat app imports existing content from other tools as pull requests.
-- **The same rules for every assistant.** Architects write the guidelines once. One command connects any project's coding assistant to them, and an update reaches every project at once.
-- **Docs that keep up with the code.** When code changes, the assistant proposes the matching doc update. Pages are flagged when the code they describe changes, or when their `verified` date is more than six months old.
-- **Humans stay in control.** Every change is a pull request that a person reviews and merges.
-
-## Who it helps
-
-| Role | What they get |
-|---|---|
-| Executives | One place to find how the company builds software, and docs they can trust because each change is reviewed |
-| Architects | Guidelines that every coding assistant applies, in every repository, without copying them |
-| Engineers | Docs that update with their pull requests, and an assistant that already knows the rules |
-| New hires | One website to learn the systems, current because the code keeps it current |
-
 ## How it works
 
-```text
-  Architects and engineers              Coding assistants (Claude Code, ...)
-           |  read                               |  read guidelines, propose updates
-           v                                     v
-     +-------------- Ohara (one Docker container) ---------------+
-     |   Website                 MCP server                      |
-     +-----------------------------+------------------------------+
-                                   |  GitHub App
-                                   v
-     Docs repository                   Code repositories
-     (Markdown, pull requests)         (pushes flag stale pages,
-                                        docs change with the code)
+```mermaid
+flowchart LR
+  people([People]) -- website --> ohara[Ohara]
+  agents([AI agents]) -- MCP --> ohara
+  ohara -- GitHub App --> docs[Docs repository]
+  ohara -- GitHub App --> code[Code repositories]
+  code -- pushes flag stale pages --> ohara
 ```
 
-1. Your docs are plain Markdown files in a GitHub repository. Folders become the menu.
-2. People read them on the Ohara website. Coding assistants read them through the MCP server.
-3. When an assistant changes code, it proposes the doc updates as a pull request on the docs repository, linked from the code pull request so reviewers see both.
-4. Pushes to code repositories flag the pages that describe the changed code, so assistants know what to update next.
+1. **Docs repository.** Plain Markdown files in one GitHub repository are the source of truth. The folder tree is the menu, and a page's first heading is its title. See [Docs repository](configure/docs-repository.md).
+2. **Two ways to read.** The website at `OHARA_URL` is for people. The MCP server at `OHARA_URL/mcp` is for AI agents. Both serve the same pages with the same access rules.
+3. **Proposals.** AI never edits the docs directly. An agent calls `propose_change`, and Ohara's GitHub App opens a pull request on the docs repository. A proposal from a code branch, such as `feature/billing` in `api`, goes to one pull request on the `api/feature/billing` branch, which the code pull request links to.
+4. **Freshness.** Front matter says who owns a page, when it was last verified, and which code it covers. A page is stale when it is unverified for 180 days, or when a push changes the code it covers. Merging a proposal verifies the page.
+5. **Docs that live with the code.** A code repository with a `.ohara.yml` keeps its docs next to the code. Ohara syncs them into `apps/<repository>/` on each push, without committing them to the docs repository. See [Code repositories](configure/code-repositories.md).
 
-See [How Ohara works](concepts.md) for the details.
+```yaml
+---
+owner: ada
+verified: 2026-03-01
+covers: [acme/api:src/billing/*]
+---
+```
 
-## Trust and security
+## The GitHub App
 
-- **Self-hosted.** Ohara runs as one container on your infrastructure. Your docs stay in your GitHub repository.
-- **Access mirrors GitHub.** A public docs repository makes a public website. A private one requires GitHub sign-in, and only people who can read the repository can read the docs. Access is checked again every 5 minutes.
-- **No AI change goes in unreviewed.** AI opens pull requests. People review and merge them.
-- **Open source.** Apache-2.0 license.
+Each instance creates its own GitHub App during setup, and you install it on the docs repository and on the code repositories Ohara should follow. The app signs people in, downloads the docs repository, receives push and installation events through a webhook, and opens the pull requests that agents propose.
+
+## Access
+
+Access mirrors the docs repository. A public repository makes a public website. A private one requires GitHub sign-in, and only people who can read the repository can read the docs, checked again every 5 minutes. The MCP server follows the same rules. See [Access](configure/access.md).
+
+## Glossary
+
+| Term | Meaning |
+|---|---|
+| Docs repository | The GitHub repository Ohara reads its pages from |
+| Code repository | Any other repository the GitHub App is installed on |
+| Snapshot | Ohara's local copy of the docs repository's default branch |
+| Proposal | A change sent through `propose_change`, which becomes a pull request |
+| Stale page | A page verified more than 180 days ago, or whose covered code changed since it last changed |
+| Synced page | A page under `apps/`, copied from a code repository |
+| Guideline | A page that sets engineering rules, such as the API style or the design system |
 
 ## Where to go next
 
 | I want to | Read |
 |---|---|
-| Understand the concepts | [How Ohara works](concepts.md) |
 | Install Ohara | [Install](install/README.md) |
 | Run it in production | [Operate](install/operate.md) |
 | Lay out the docs repository | [Docs repository](configure/docs-repository.md) |
