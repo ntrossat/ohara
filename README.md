@@ -51,11 +51,6 @@ claude mcp add --transport http ohara <OHARA_URL>/mcp
 
 The full documentation is in [`docs/`](docs/README.md): install, configure, use, and how it works inside.
 
-## Roadmap
-
-- An AI chat over the docs.
-- A Compose file that runs the published image instead of building it.
-
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), and report security issues as described in [SECURITY.md](SECURITY.md).
