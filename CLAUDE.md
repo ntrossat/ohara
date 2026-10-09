@@ -55,7 +55,7 @@ Ohara is an open-source project. Never commit anything specific to one company, 
 
 ## Repositories
 
-- This repo holds the application code, including the HTML website, and Ohara's own product docs in `docs/` (for executives, admins, and developers). `.ohara.yml` syncs them into `apps/ohara/` of the website on each push to `main`. Never add other documentation here.
+- This repo holds the application code, including the HTML website, and Ohara's own product docs in `docs/` (for engineers, admins, and developers). `.ohara.yml` syncs them into `apps/ohara/` of the website on each push to `main`. Never add other documentation here.
 - Guidelines and all other documentation live in a separate, configurable docs repository. Each company points Ohara to its own repository. Never hard-code a docs repository name.
 - A merge to `main` in the docs repository triggers a site rebuild here.
 
@@ -78,8 +78,7 @@ Guidelines:
 
 Project docs, in `docs/` (synced to `apps/ohara/`):
 
-- `docs/README.md`: what Ohara is and who it helps, for executives.
-- `docs/concepts.md`: how Ohara works, and a glossary.
+- `docs/README.md`: what Ohara is and how it works, for engineers, and a glossary.
 - `docs/install/`: installing, setup, HTTPS, paths, and operating (data, updates, CD, troubleshooting).
 - `docs/configure/`: the docs repository layout, code repositories (covers, docs pull requests from a code branch, `.ohara.yml` sync), and access.
 - `docs/use/`: coding assistants, the `/ohara:*` commands, chat apps, and the team workflow.

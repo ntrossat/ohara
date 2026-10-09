@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" width="760" height="304" role="img" aria-label="People read Ohara on the website and AI agents through MCP. Ohara reads the docs repository and opens pull requests through its GitHub App, and code repository pushes flag stale pages.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#a6a39a"/>
+    </marker>
+    <style>
+      .panel { fill: #1c1b19; stroke: #2c2b28; }
+      .node { fill: #2a2926; stroke: #3d3b37; stroke-width: 1.5; }
+      .main { fill: #2a2926; stroke: #d97757; stroke-width: 1.5; }
+      .edge { fill: none; stroke: #a6a39a; stroke-width: 1.5; marker-end: url(#arrow); }
+      .both { marker-start: url(#arrow); }
+      .title { fill: #faf9f5; font: 600 15px Manrope, "Manrope Variable", system-ui, sans-serif; text-anchor: middle; }
+      .sub { fill: #a6a39a; font: 12px "JetBrains Mono", ui-monospace, monospace; text-anchor: middle; }
+    </style>
+  </defs>
+  <rect class="panel" x="0.5" y="0.5" width="759" height="303" rx="14"/>
+
+  <rect class="node" x="40" y="56" width="170" height="60" rx="30"/>
+  <text class="title" x="125" y="81">People</text>
+  <text class="sub" x="125" y="101">website</text>
+
+  <rect class="node" x="40" y="188" width="170" height="60" rx="30"/>
+  <text class="title" x="125" y="213">AI agents</text>
+  <text class="sub" x="125" y="233">MCP</text>
+
+  <rect class="main" x="310" y="110" width="140" height="84" rx="10"/>
+  <text class="title" x="380" y="147">Ohara</text>
+  <text class="sub" x="380" y="167">GitHub App</text>
+
+  <rect class="node" x="550" y="56" width="170" height="60" rx="10"/>
+  <text class="title" x="635" y="81">Docs repository</text>
+  <text class="sub" x="635" y="101">pull requests</text>
+
+  <rect class="node" x="550" y="188" width="170" height="60" rx="10"/>
+  <text class="title" x="635" y="213">Code repositories</text>
+  <text class="sub" x="635" y="233">pushes flag pages</text>
+
+  <path class="edge" d="M210 86C262 86 258 140 308 140"/>
+  <path class="edge" d="M210 218C262 218 258 164 308 164"/>
+  <path class="edge both" d="M452 140C502 140 498 86 548 86"/>
+  <path class="edge both" d="M452 164C502 164 498 218 548 218"/>
+</svg>
