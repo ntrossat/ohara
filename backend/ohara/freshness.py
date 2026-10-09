@@ -103,6 +103,7 @@ def record_push(root: Path, repo: str, files: list[str], compare: str) -> list[s
 
 def set_field(markdown: str, key: str, value: str) -> str:
     """Set one front matter field, keeping the rest of the front matter as written."""
+    markdown = markdown.replace("\r\n", "\n")  # Windows line endings would hide the front matter
     line = f"{key}: {value}"
     pattern = re.compile(rf"^{re.escape(key)}:.*$", re.M)
     match = docs.FRONT_MATTER.match(markdown)

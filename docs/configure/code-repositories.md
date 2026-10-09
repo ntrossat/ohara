@@ -69,10 +69,7 @@ Ohara then shows those docs under `apps/<repository name>/` on the website and t
 - Paths are normalized, so `./docs/` is `docs`. When two entries land on the same path, the first one in the list wins. Absolute paths and paths that leave the repository root are ignored.
 - If `.ohara.yml` isn't valid YAML, isn't a mapping, or has a `docs` value that isn't a list, Ohara keeps the last synced copy and logs the error.
 - Ohara downloads the whole repository at the commit to read its docs.
-- Save synced Markdown files with Unix line endings (LF): with Windows line endings (CRLF), Ohara misreads their front matter.
 
 ### Private code
 
-Synced docs follow the docs repository's access: everyone who can read it can read them. Ohara never syncs a private code repository when the docs repository is public. When a private docs repository is made public, Ohara removes the folders of private code repositories. This needs the webhook's `repository` event, or a restart.
-
-When a code repository is made private while the docs repository is public, its synced docs stay until its next push or Ohara's next restart. Restart Ohara right after the change.
+Synced docs follow the docs repository's access: everyone who can read it can read them. Ohara never syncs a private code repository when the docs repository is public. When a private docs repository is made public, Ohara removes the folders of private code repositories. When a code repository is made private while the docs repository is public, Ohara removes its folder. Both happen within 5 minutes, also without a webhook.

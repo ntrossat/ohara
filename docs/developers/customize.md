@@ -54,7 +54,7 @@ async def owners(ctx: Context) -> list[dict]:
 
 `Context` comes from `mcp.server.mcpserver` and `ToolError` from `mcp.server.mcpserver.exceptions`, both already imported in `mcp_server.py`. For a public docs repository, `caller` is `None` when the client sent no token.
 
-Access is enforced before any tool runs: for a private docs repository, only callers who can read it reach the tools.
+Access is enforced before any tool runs: for a private docs repository, only callers who can read it reach the tools. For a public one, add a tool that acts as the caller to `SIGNED_IN_TOOLS`, so an anonymous call gets `401` and the client signs in.
 
 ## Sync and freshness rules
 
@@ -73,6 +73,7 @@ Access is enforced before any tool runs: for a private docs repository, only cal
 | `.ohara.yml` format and layout | `appconfig.py` |
 | Search results | `SEARCH_LIMIT` in `mcp_server.py` |
 | Access check interval | `CHECK_INTERVAL` in `sessions.py` |
+| Visibility check interval, for missed webhooks | `REFRESH_INTERVAL` in `main.py` |
 
 ## Deployment
 

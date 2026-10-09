@@ -13,6 +13,7 @@ requires a signed-in user who can write to the repository. Pages report their fr
 
 import datetime
 import hashlib
+import json
 import logging
 import re
 import secrets
@@ -516,6 +517,43 @@ class App:
         await guarded(scope, receive, send)
 
 
+SIGNED_IN_TOOLS = {"check_repository", "propose_change"}  # they act as the caller, even on public docs
+
+
+def calls_signed_in_tool(body: bytes) -> bool:
+    """Whether a JSON-RPC request calls a tool that needs a signed-in caller."""
+    try:
+        message = json.loads(body)
+    except ValueError:
+        return False
+    messages = message if isinstance(message, list) else [message]
+    return any(
+        isinstance(m, dict) and m.get("method") == "tools/call" and (m.get("params") or {}).get("name") in SIGNED_IN_TOOLS
+        for m in messages
+    )
+
+
+async def buffered(receive: Receive) -> tuple[bytes, Receive]:
+    """Read the request body, and a receive that replays it to the MCP handler."""
+    body, more = b"", True
+    while more:
+        message = await receive()
+        if message["type"] != "http.request":
+            return body, receive
+        body += message.get("body", b"")
+        more = message.get("more_body", False)
+    replayed = False
+
+    async def replay() -> dict:
+        nonlocal replayed
+        if replayed:
+            return await receive()
+        replayed = True
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return body, replay
+
+
 async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
     settings = store.load()
     if not store.configured(settings):
@@ -524,7 +562,12 @@ async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
     header = dict(scope["headers"]).get(b"authorization", b"").decode()
     token = header[7:].strip() if header[:7].lower() == "bearer " else ""
     caller = await authenticate(token, settings) if token else None
-    if (token and not caller) or (settings["repo"]["private"] and not (caller and caller.allowed)):
+    anonymous_write = False
+    if not token and not settings["repo"]["private"] and scope["method"] == "POST":
+        # Public docs need no sign-in to read, so only a call that acts as the caller starts one.
+        body, receive = await buffered(receive)
+        anonymous_write = calls_signed_in_tool(body)
+    if anonymous_write or (token and not caller) or (settings["repo"]["private"] and not (caller and caller.allowed)):
         status, detail = (403, sessions.NO_ACCESS) if caller else (401, "Sign in required: connect with an Ohara or GitHub token")
         metadata = build_resource_metadata_url(AnyHttpUrl(oauth.resource_url()))
         headers = {"WWW-Authenticate": f'Bearer resource_metadata="{metadata}"'} if status == 401 else None

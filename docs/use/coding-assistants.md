@@ -16,9 +16,9 @@ Name the server `ohara`: `/ohara:init` allows the read-only tools by that name, 
 
 For a private docs repository, the assistant opens a GitHub sign-in on first use. See [Access](../configure/access.md#sign-in).
 
-For a public docs repository, reading needs no sign-in, so the assistant never asks for one. `check_repository` and `propose_change` still need to know who you are: send a GitHub token with write access to the docs repository, as below. Without one, they answer "Sign in required".
+For a public docs repository, reading needs no sign-in. The assistant asks you to sign in the first time it checks a repository or proposes a change, since those act as you.
 
-For CI, headless agents, and public docs repositories, send a GitHub token:
+For CI and headless agents, send a GitHub token instead:
 
 ```bash
 claude mcp add --transport http ohara <OHARA_URL>/mcp --header "Authorization: Bearer <token>"

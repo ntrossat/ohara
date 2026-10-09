@@ -63,8 +63,8 @@ export default function Setup({ url, installUrl, installed }: Props) {
               <p>
                 GitHub creates the app, then asks where to install it. Pick your docs repository, and the code
                 repositories whose changes should update the docs. Those with a <code>.ohara.yml</code> have their docs
-                synced into the docs repository, so everyone who can read it can read them. Private code is never
-                synced into a public docs repository.
+                shown in Ohara next to the docs repository, so everyone who can read it can read them. Private code
+                is never shown with a public docs repository.
               </p>
               {!installUrl && (
                 <form onSubmit={createApp}>

@@ -147,7 +147,7 @@ claude mcp add --transport http ohara <OHARA_URL>/mcp
 
 Then run `/ohara:init` in the project to set it up.
 
-For CI, headless agents, and proposals on a public docs repository, send a GitHub token: `--header "Authorization: Bearer <token>"`.
+For CI and headless agents, send a GitHub token instead: `--header "Authorization: Bearer <token>"`.
 
 Assistants read pages and propose changes. A proposal from a code branch opens one docs pull request, and later proposals from the same branch add to it. Other proposals open their own pull request. A human reviews and merges each one. Proposing requires a signed-in user or a token with write access to the repository.
 

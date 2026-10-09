@@ -98,8 +98,6 @@ The docs repository and its pull requests stay on GitHub.
 |---|---|
 | The website doesn't update after a merge | GitHub can't reach the webhook. Check that `OHARA_URL` is public, and look at **Recent Deliveries** in the app's settings on GitHub. Restarting Ohara also updates the docs |
 | The website shows old docs, and the logs say `sync failed` | Ohara can't read the docs repository: the app was removed from it, or the repository was renamed or deleted. Ohara keeps serving the last copy. Add the app back to the repository, or start over |
-| Setup stops while it downloads the docs | Choosing the docs repository downloads it and every code repository's docs in the same request. Raise the reverse proxy's timeout, or install the app on fewer code repositories at first |
-| A coding assistant gets "Sign in required" on a public docs repository | Reading needs no sign-in, so the assistant never signs in. Send a GitHub token as `Authorization: Bearer` to propose changes |
 | The API or MCP server answers "Ohara is not set up yet" | Setup didn't finish. Open `OHARA_URL` and complete it |
 | Coding assistants can't sign in | MCP sign-in needs an `https://` address or `localhost`. Otherwise, send a GitHub token as `Authorization: Bearer` |
 | A proposal fails with a permissions error | The app lacks write permissions. Grant **Contents** and **Pull requests** write in the app's settings, then accept them on the installation |

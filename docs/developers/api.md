@@ -59,7 +59,7 @@ Streamable HTTP, stateless, at `/mcp`. Callers send `Authorization: Bearer` with
 | `propose_change` | `title`, `description`, `pages` (`path`, `markdown`), and optionally `project` and `branch`, or `pull_request` (a URL or number) | The pull request URL |
 | `import_docs` | None | The `ingest` prompt's steps, for clients without prompts, such as chat apps |
 
-`check_repository` and `propose_change` need a signed-in caller, even for a public docs repository. `propose_change` also needs write access to the docs repository. It picks the docs branch in this order:
+`check_repository` and `propose_change` need a signed-in caller, even for a public docs repository: there, a call to either without a token gets `401`, so the client signs in and calls again. `propose_change` also needs write access to the docs repository. It picks the docs branch in this order:
 
 1. `project` and `branch` both set: the `<project>/<branch>` branch.
 2. `pull_request` set: the branch of that pull request, if it is open and not from a fork. Otherwise, a new branch.

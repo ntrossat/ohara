@@ -57,7 +57,7 @@ Docker Compose reads `OHARA_URL` from `.env` and passes only that variable to th
 1. **Create the GitHub App.** Enter the organization that owns the docs repository, or leave the field empty for a personal account, then click **Create GitHub App**. GitHub shows the app's name, `Ohara // ` followed by the host, and its permissions. You can rename it, then confirm.
 2. **Install the app.** GitHub asks where to install it. Pick the docs repository and the code repositories that Ohara should follow. You can add more later.
 3. **Choose the docs repository.** Back in Ohara, pick the repository that holds the docs and click **Use this repository**. With a single repository, Ohara skips this step. If GitHub doesn't send you back, click **Check again**.
-4. **Done.** Ohara downloads the repository and opens the website.
+4. **Done.** Ohara downloads the repository and opens the website. The code repositories' docs follow in the background.
 
 The app asks for these permissions:
 
@@ -92,7 +92,7 @@ With `OHARA_URL=http://localhost:8000`, Ohara works for trying it out, with thes
 | Feature | Local run |
 |---|---|
 | Website and setup | Works |
-| Webhooks | None: the docs and code repositories' docs update when Ohara restarts, and pushes flag no pages |
+| Webhooks | None: the docs and code repositories' docs update when Ohara restarts, and pushes flag no pages. Visibility changes still apply within 5 minutes |
 | Sign-in for coding assistants | Works on `localhost` |
 | App name | Gets a random suffix, such as `Ohara // localhost#be8c07`, since GitHub App names are unique |
 

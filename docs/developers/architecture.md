@@ -33,7 +33,7 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | `freshness.py` | Owners, verified dates, `covers`, stale flags, and front matter edits |
 | `appdocs.py` | The sync of code repositories' docs into `apps/<repository>/` of the snapshot |
 | `appconfig.py` | Reading and validating `.ohara.yml` |
-| `mcp_server.py` | MCP tools and prompts, and the bearer-token guard on `/mcp` |
+| `mcp_server.py` | MCP tools and prompts, and the bearer-token guard on `/mcp`, which also asks anonymous callers of public docs to sign in for the tools that act as them |
 | `oauth.py` | The OAuth authorization server for MCP clients |
 | `sessions.py` | Sign-in sessions and the 5-minute access check |
 | `store.py` | Instance settings: app credentials and the docs repository |
@@ -85,6 +85,8 @@ The `pages` table is an SQLite FTS5 index of the snapshot, rebuilt on each updat
 
 The same runs on each start and on `repository` events, which also refresh the repository's visibility and default branch.
 
+Every 5 minutes, Ohara also reads the docs repository's visibility and default branch, in case a webhook never arrived. On a change, it syncs the docs and every code repository. With public docs, it also removes the folders of code repositories that became private.
+
 ## Authentication
 
 ### Setup
@@ -92,7 +94,7 @@ The same runs on each start and on `repository` events, which also refresh the r
 1. Ohara posts a manifest to GitHub with the app's callback URLs, webhook, events, and permissions. The admin confirms on GitHub.
 2. GitHub redirects to `/api/setup/callback`. Ohara checks the `state` it sent, which works once and for 10 minutes, and exchanges the code for the app's credentials (ID, slug, client ID and secret, webhook secret, private key).
 3. The admin installs the app. GitHub redirects to `/api/setup/installed`, and Ohara saves the installation.
-4. The admin picks the docs repository, or Ohara picks it when the installation has only one. Then the setup routes lock.
+4. The admin picks the docs repository, or Ohara picks it when the installation has only one. Ohara downloads the docs before it answers, and syncs the code repositories after, so a proxy timeout can't cut setup short. Then the setup routes lock.
 
 ### Website sign-in
 

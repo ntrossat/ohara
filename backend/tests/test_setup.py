@@ -123,11 +123,14 @@ def test_choosing_the_docs_repository_syncs_the_code_repositories(client, app_cr
 
     calls = []
 
-    async def record(name):
-        calls.append(name)
+    async def sync_docs():
+        calls.append("docs")
 
-    monkeypatch.setattr(main, "safe_sync", lambda: record("docs"))
-    monkeypatch.setattr(main, "safe_sync_apps", lambda: record("apps"))
+    async def sync_apps():
+        calls.append("apps")
+
+    monkeypatch.setattr(main, "safe_sync", sync_docs)
+    monkeypatch.setattr(main, "safe_sync_apps", sync_apps)
     store.save({"app": app_credentials, "installation_id": 42})
     mock_installation([{"full_name": REPO, "name": "handbook", "private": True, "default_branch": "main"}])
     assert client.post("/api/setup/repository", json={"full_name": REPO}).json() == {"repo": REPO}
