@@ -1,4 +1,5 @@
 import json
+import re
 import time
 from urllib.parse import parse_qs, urlparse
 
@@ -25,13 +26,15 @@ def test_manifest_points_github_back_to_this_instance(client):
     assert manifest["default_permissions"] == {"contents": "write", "pull_requests": "write", "metadata": "read"}
     assert manifest["public"] is False
     assert manifest["setup_on_update"] is True
-    assert manifest["name"] == "Ohara docs.example.com"
+    assert manifest["name"] == "Ohara // docs.example.com"
 
 
 def test_local_app_names_differ():
     from ohara import github
 
-    assert github.app_name("http://localhost:8000") != github.app_name("http://localhost:8000")
+    name = github.app_name("http://localhost:8000")
+    assert re.fullmatch(r"Ohara // localhost#[0-9a-f]{6}", name)
+    assert name != github.app_name("http://localhost:8000")
 
 
 @respx.mock

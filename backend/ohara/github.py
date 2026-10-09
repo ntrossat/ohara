@@ -58,9 +58,10 @@ def is_public(base_url: str) -> bool:
 
 
 def app_name(base_url: str) -> str:
-    """App names are unique across GitHub: use the instance's host, or a random suffix for local runs."""
-    suffix = httpx.URL(base_url).host if is_public(base_url) else secrets.token_hex(3)
-    return f"Ohara {suffix}"[:34]
+    """App names are unique across GitHub: use the instance's host, with a random suffix for local runs."""
+    host = httpx.URL(base_url).host
+    suffix = host if is_public(base_url) else f"{host}#{secrets.token_hex(3)}"
+    return f"Ohara // {suffix}"[:34]
 
 
 def manifest(base_url: str) -> dict:
