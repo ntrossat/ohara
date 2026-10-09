@@ -82,7 +82,7 @@ Project docs, in `docs/` (synced to `apps/ohara/`):
 - `docs/concepts.md`: how Ohara works, and a glossary.
 - `docs/install/`: installing, setup, HTTPS, paths, and operating (data, updates, CD, troubleshooting).
 - `docs/configure/`: the docs repository layout, code repositories (covers, docs pull requests from a code branch, `.ohara.yml` sync), and access.
-- `docs/use/`: coding assistants, the `/ohara:*` commands, and the team workflow.
+- `docs/use/`: coding assistants, the `/ohara:*` commands, chat apps, and the team workflow.
 - `docs/developers/`: architecture, API, development, and customizing.
 
 Workflow:

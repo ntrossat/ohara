@@ -12,9 +12,9 @@ The website's design lives in `frontend/src/styles.css`. Its first block defines
 
 | Token | Role |
 |---|---|
-| `--bg`, `--line` | Background and borders |
+| `--bg`, `--bg-2`, `--surface-3`, `--line` | Background, panels, small filled shapes, and borders |
 | `--ink`, `--text`, `--muted` | Titles, body text, secondary text |
-| `--clay`, `--clay-hover`, `--link` | The accent color, for buttons, the current page, and links |
+| `--clay`, `--clay-hover`, `--link`, `--on-clay` | The accent color, for buttons, the current page, and links, and text on it |
 | `--serif`, `--sans`, `--mono` | Title, interface, and code typefaces |
 | `--size-*`, `--space-*` | Type sizes and the 4px spacing scale |
 | `--radius-*`, `--border` | Shapes |
@@ -27,7 +27,7 @@ Change the tokens to rebrand the whole site. The logo is drawn in `Mark.tsx`. Fo
 
 The `/ohara:*` commands are MCP prompts in `backend/ohara/mcp_server.py`: `INIT_PROMPT`, `UPDATE_PROMPT`, `REVIEW_PROMPT`, and `INGEST_PROMPT`. Each is plain text, with `{url}` and `{repo}` filled in for the instance. Edit them to change what an assistant does, such as the sections `/ohara:init` writes in `CLAUDE.md`.
 
-To add a command, write a new prompt and register it:
+To add a command, write a new prompt, such as `ONBOARD_PROMPT`, and register it:
 
 ```python
 @server.prompt(name="onboard", title="Onboard a new engineer")
@@ -44,12 +44,17 @@ Tools are functions decorated with `@server.tool()` in `mcp_server.py`. The docs
 
 ```python
 @server.tool()
-def owners() -> list[dict]:
+async def owners(ctx: Context) -> list[dict]:
     """List each page owner and the pages they own."""
+    caller: Caller | None = ctx.request_context.request.state.caller
+    if not caller:
+        raise ToolError("Sign in required: connect with a GitHub token that can read the docs repository")
     ...
 ```
 
-Access is enforced before any tool runs: for a private docs repository, only callers who can read it reach the tools.
+`Context` comes from `mcp.server.mcpserver` and `ToolError` from `mcp.server.mcpserver.exceptions`, both already imported in `mcp_server.py`. For a public docs repository, `caller` is `None` when the client sent no token.
+
+Access is enforced before any tool runs: for a private docs repository, only callers who can read it reach the tools. For a public one, add a tool that acts as the caller to `SIGNED_IN_TOOLS`, so an anonymous call gets `401` and the client signs in.
 
 ## Sync and freshness rules
 
@@ -59,9 +64,16 @@ Access is enforced before any tool runs: for a private docs repository, only cal
 | Stale flags kept per page | `MAX_CHANGES` in `freshness.py` |
 | Synced file types, size, and count | `TYPES`, `MAX_SIZE`, `MAX_FILES` in `appdocs.py` |
 | Synced folder | `APPS` in `docs.py` |
+| Folder index file names | `INDEX_NAMES` in `docs.py` |
+| Ignore file name | `IGNORE_FILE` in `docs.py` |
+| How long stale flags from code changes last | `DRIFT_TTL` in `freshness.py` |
+| Session length without use | `TTL` in `sessions.py` |
+| MCP token, refresh token, and sign-in lifetimes | `ACCESS_TTL`, `REFRESH_TTL`, `PENDING_TTL` in `oauth.py` |
+| Registered MCP clients kept | `MAX_CLIENTS` in `oauth.py` |
 | `.ohara.yml` format and layout | `appconfig.py` |
 | Search results | `SEARCH_LIMIT` in `mcp_server.py` |
 | Access check interval | `CHECK_INTERVAL` in `sessions.py` |
+| Visibility check interval, for missed webhooks | `REFRESH_INTERVAL` in `main.py` |
 
 ## Deployment
 

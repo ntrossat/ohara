@@ -20,4 +20,4 @@ How Ohara is built, and how to change it.
 | Backend | Python 3.14, FastAPI, the MCP Python SDK, httpx, PyYAML, PyJWT, SQLite |
 | Frontend | React 19 with Vite, React Router, react-markdown |
 | Packaging | One Docker image: the frontend is built, then served by FastAPI |
-| CI and CD | GitHub Actions: tests on each pull request, push to `main`, and `v*` tag, then an image for `main` and `v*` tags once they pass, and an optional deploy command |
+| CI and CD | GitHub Actions: tests on each pull request, push to `main`, and `v*` tag, then an image for `main` and `v*` tags once they pass, and an optional deploy command for `main` |

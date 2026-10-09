@@ -24,6 +24,7 @@ STATE_COOKIE = "ohara_state"
 CONSENT_COOKIE = "ohara_consent"
 SETUP_TTL = 600  # seconds to come back from GitHub with the new app
 SIGN_IN_TTL = 600  # seconds to come back from the GitHub sign-in
+REFRESH_INTERVAL = sessions.CHECK_INTERVAL  # a visibility change reaches readers as fast as an access change
 AUTH_METADATA = "/.well-known/oauth-authorization-server"
 RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
 
@@ -83,6 +84,33 @@ async def safe_sync_app(full_name: str, ref: str | None = None) -> None:
         log.exception("app docs sync of %s failed", full_name)
 
 
+async def refresh() -> None:
+    """Catch the repository changes whose webhook never arrived, as on an address GitHub can't reach: the docs
+    repository's visibility and default branch, and code repositories made private while the docs are public."""
+    settings = store.load()
+    token = await github.installation_token(settings["app"], settings["installation_id"])
+    repo = github.repo_summary(await github.get_repo(token, settings["repo"]["full_name"]))
+    if repo != settings["repo"]:
+        await safe_sync()
+        await safe_sync_apps()
+        return
+    if not repo["private"]:
+        for code in await github.installation_repos(token):
+            record = appdocs.state(code["full_name"])
+            if code["private"] and record and not record.get("skipped"):
+                await safe_sync_app(code["full_name"])
+
+
+async def refresh_loop() -> None:
+    while True:
+        await asyncio.sleep(REFRESH_INTERVAL)
+        if store.configured():
+            try:
+                await refresh()
+            except Exception:
+                log.exception("refresh failed")
+
+
 async def safe_remove_app(full_name: str) -> None:
     try:
         await appdocs.remove(full_name)
@@ -95,8 +123,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if store.configured():
         await asyncio.to_thread(docs.index, config.docs_dir())  # search works even if GitHub is unreachable
         asyncio.create_task(startup())
+    refreshing = asyncio.create_task(refresh_loop())
     async with mcp_server.run():
         yield
+    refreshing.cancel()
     await github.close()
 
 
@@ -200,7 +230,9 @@ def require_app() -> dict:
 
 
 @app.get("/api/setup/installed")
-async def setup_installed(installation_id: int | None = None, settings: dict = Depends(require_app)) -> RedirectResponse:
+async def setup_installed(
+    background: BackgroundTasks, installation_id: int | None = None, settings: dict = Depends(require_app)
+) -> RedirectResponse:
     """GitHub redirects here after an install or a change of repositories; without an id, the setup page checks again.
     Once Ohara is configured, an admin who added a code repository returns to the website."""
     if store.configured(settings):
@@ -216,7 +248,7 @@ async def setup_installed(installation_id: int | None = None, settings: dict = D
     store.update(installation_id=installation_id)
     repos = await installed_repos(settings["app"], installation_id)
     if len(repos) == 1:
-        await choose_repository(repos[0])
+        await choose_repository(repos[0], background)
         return RedirectResponse(f"{config.base_path()}/", 303)
     return RedirectResponse(f"{config.base_path()}/setup", 303)
 
@@ -226,9 +258,12 @@ async def installed_repos(app_credentials: dict, installation_id: int) -> list[d
     return await github.installation_repos(token)
 
 
-async def choose_repository(repo: dict) -> None:
+async def choose_repository(repo: dict, background: BackgroundTasks) -> None:
+    """Download the docs before answering, so the website opens with them. The code repositories picked in the
+    same installation sync after the answer, as they can take longer than a proxy waits."""
     store.update(repo=github.repo_summary(repo))
-    await startup()  # the docs, then the code repositories picked in the same installation
+    await safe_sync()
+    background.add_task(safe_sync_apps)
 
 
 def require_installed(settings: dict = Depends(require_unconfigured)) -> dict:
@@ -249,12 +284,14 @@ class Choice(BaseModel):
 
 
 @app.post("/api/setup/repository")
-async def setup_repository(choice: Choice, settings: dict = Depends(require_installed)) -> dict[str, str]:
+async def setup_repository(
+    choice: Choice, background: BackgroundTasks, settings: dict = Depends(require_installed)
+) -> dict[str, str]:
     repos = await installed_repos(settings["app"], settings["installation_id"])
     repo = next((r for r in repos if r["full_name"] == choice.full_name), None)
     if not repo:
         raise HTTPException(400, "The app isn't installed on this repository: add it to the installation on GitHub, or pick another")
-    await choose_repository(repo)
+    await choose_repository(repo, background)
     return {"repo": repo["full_name"]}
 
 

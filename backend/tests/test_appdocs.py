@@ -327,3 +327,43 @@ def test_sync_apps_syncs_every_repository_and_removes_orphan_folders(configure, 
     monkeypatch.setattr(main.appdocs, "remove", remove)
     asyncio.run(main.sync_apps())
     assert seen == [("sync", "acme/api"), ("sync", "acme/web"), ("remove", "acme/gone")]
+
+
+def refresh_mocks(monkeypatch, docs_repo, code_repos, seen):
+    async def token(*_):
+        return "ghs_app"
+
+    async def get_repo(_, full_name):
+        return docs_repo
+
+    async def repos(_):
+        return code_repos
+
+    async def record(name, *_):
+        seen.append(name)
+
+    monkeypatch.setattr(main.github, "installation_token", token)
+    monkeypatch.setattr(main.github, "get_repo", get_repo)
+    monkeypatch.setattr(main.github, "installation_repos", repos)
+    monkeypatch.setattr(main, "safe_sync", lambda: record("docs"))
+    monkeypatch.setattr(main, "safe_sync_apps", lambda: record("apps"))
+    monkeypatch.setattr(main, "safe_sync_app", record)
+
+
+def test_refresh_syncs_when_the_docs_repository_changed_without_a_webhook(configure, monkeypatch):
+    configure(private=False)
+    seen = []
+    refresh_mocks(monkeypatch, {"full_name": REPO, "private": True, "default_branch": "main"}, [], seen)
+    asyncio.run(main.refresh())
+    assert seen == ["docs", "apps"]
+
+
+def test_refresh_removes_code_repositories_made_private_from_public_docs(configure, monkeypatch):
+    configure(private=False)
+    db.put("app", "acme/api", {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None})
+    db.put("app", "acme/web", {"name": "web", "branch": "main", "paths": ["docs"], "skipped": None})
+    seen = []
+    code = [{"full_name": "acme/api", "name": "api", "private": True}, {"full_name": "acme/web", "name": "web", "private": False}]
+    refresh_mocks(monkeypatch, {"full_name": REPO, "private": False, "default_branch": "main"}, code, seen)
+    asyncio.run(main.refresh())
+    assert seen == ["acme/api"]

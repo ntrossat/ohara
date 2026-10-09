@@ -27,7 +27,9 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-When a push to the default branch of `acme/api` changes a matching file, Ohara flags the page with the date, the changed files, and a compare link. Coding assistants see the flag through `stale_pages` and propose an update. The flag stays until the page changes.
+When a push to the default branch of `acme/api` changes a matching file, Ohara flags the page with the date, the changed files, and a compare link. Coding assistants see the flag through `stale_pages` and propose an update. The flag stays until the page changes, or for a year. Patterns follow the rules in [Docs repository](docs-repository.md#freshness).
+
+Flags need the webhook: without one, as on a local run, pushes flag nothing. A push that changes more than 300 files may flag only part of them.
 
 ## Docs pull requests from a code branch
 
@@ -36,6 +38,7 @@ A coding assistant proposes doc updates from a code branch, such as `feature/bil
 - The assistant puts the docs pull request link in the code pull request's description, so reviewers see the code and its docs together.
 - A human reviews and merges the docs pull request. Ohara never merges or closes it.
 - A branch left from a closed pull request starts again from the default branch on the next proposal.
+- Characters other than letters, digits, `_`, and `-` become `-` in the branch name, so `release/v1.2` gives `api/release/v1-2`.
 
 ## Sync docs from a code repository
 
@@ -55,12 +58,12 @@ Ohara then shows those docs under `apps/<repository name>/` on the website and t
 |---|---|
 | Missing | Nothing. Removing the file removes the synced folder |
 | Empty, or without a `docs` key | `docs/` |
-| `docs: [...]` | The listed folders and files |
+| `docs: [...]` | The listed folders and files. `.` is ignored: list folders and files by name |
 | `docs:` with no value, or `docs: []` | Nothing |
 
 - The contents of a listed folder go to the root of `apps/<repository name>/`: `docs/billing.md` becomes `apps/api/billing.md`.
 - A listed file goes to the root by its name: `README.md` becomes `apps/api/README.md`, the folder's page.
-- Markdown files and images (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`) up to 1 MB each are synced, up to 500 per repository. Hidden files and symbolic links are skipped.
+- Markdown files and images (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`) up to 1 MB each are synced, up to 500 per repository. Other files, such as videos and PDFs, larger files, files past the 500th, hidden files, and symbolic links are skipped without a warning.
 - Each synced page gets a `source` field, such as `source: "acme/api:docs/billing.md"`. The website's edit link goes to that file, and coding assistants edit it in the code repository.
 - `apps/` belongs to Ohara: files under `apps/` in the docs repository are ignored.
 - Paths are normalized, so `./docs/` is `docs`. When two entries land on the same path, the first one in the list wins. Absolute paths and paths that leave the repository root are ignored.
@@ -69,4 +72,4 @@ Ohara then shows those docs under `apps/<repository name>/` on the website and t
 
 ### Private code
 
-Synced docs follow the docs repository's access: everyone who can read it can read them. Ohara never syncs a private code repository when the docs repository is public. When a private docs repository is made public, Ohara removes the folders of private code repositories.
+Synced docs follow the docs repository's access: everyone who can read it can read them. Ohara never syncs a private code repository when the docs repository is public. When a private docs repository is made public, Ohara removes the folders of private code repositories. When a code repository is made private while the docs repository is public, Ohara removes its folder. Both happen within 5 minutes, also without a webhook.

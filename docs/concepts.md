@@ -20,7 +20,7 @@ Each Ohara instance creates its own GitHub App during setup. The app does everyt
 
 - signs people in with GitHub;
 - downloads the docs repository;
-- receives events (pushes, pull requests, repository changes) through a webhook;
+- receives events (pushes, repository changes, and changes to the installation's repositories) through a webhook;
 - opens the pull requests that coding assistants propose.
 
 You install the app on the docs repository and on the code repositories that Ohara should follow.
@@ -56,11 +56,11 @@ covers: [acme/api:src/billing/*]
 ---
 ```
 
-A page is stale when its `verified` date is more than 180 days old, or when a push changed the code it covers. Assistants see stale pages and propose updates. Merging a proposal verifies the page.
+A page is stale when its `verified` date is more than 180 days old, or when a push to the default branch of a covered repository changed the code it covers. A page without `verified` never goes stale by age. Assistants see stale pages and propose updates. Merging a proposal verifies the page.
 
 ## Docs that live with the code
 
-A code repository can keep its own docs next to the code, so they change in the same pull request. With a `.ohara.yml` at its root, Ohara syncs them into `apps/<repository name>/` of the website on each push, without committing them to the docs repository. Synced pages link back to their source file, and proposals for them go to the code repository.
+A code repository can keep its own docs next to the code, so they change in the same pull request. With a `.ohara.yml` at its root, Ohara syncs them into `apps/<repository name>/` of the website on each push, without committing them to the docs repository. Synced pages link back to their source file. Assistants edit that file in the code repository, in the same change as the code: Ohara refuses proposals for synced pages.
 
 See [Code repositories](configure/code-repositories.md#sync-docs-from-a-code-repository).
 
@@ -83,6 +83,6 @@ See [Access](configure/access.md).
 | Code repository | Any other repository the GitHub App is installed on |
 | Snapshot | Ohara's local copy of the docs repository's default branch |
 | Proposal | A change sent through `propose_change`, which becomes a pull request |
-| Stale page | A page verified more than 180 days ago, or whose covered code changed |
+| Stale page | A page verified more than 180 days ago, or whose covered code changed since it last changed |
 | Synced page | A page under `apps/`, copied from a code repository |
 | Guideline | A page that sets engineering rules, such as the API style or the design system |

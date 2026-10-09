@@ -383,7 +383,9 @@ def test_proposal_restarts_a_branch_left_from_a_closed_pull_request(mcp, configu
 
 def test_proposal_requires_a_signed_in_caller(mcp, configure):
     configure(private=False)
-    assert result(call(mcp, "propose_change", **PROPOSAL))["isError"] is True
+    response = call(mcp, "propose_change", **PROPOSAL)
+    assert response.status_code == 401  # public docs: the 401 makes the client sign in
+    assert response.headers["WWW-Authenticate"].startswith("Bearer resource_metadata=")
 
 
 @respx.mock
@@ -494,7 +496,16 @@ def test_check_repository_explains_other_accounts(mcp, configure):
 
 def test_check_repository_requires_a_signed_in_caller(mcp, configure):
     configure(private=False)
-    assert result(call(mcp, "check_repository", repository="acme/api"))["isError"] is True
+    assert call(mcp, "check_repository", repository="acme/api").status_code == 401
+
+
+def test_public_repository_reads_without_a_token_in_a_batch(mcp, configure):
+    configure(private=False)
+    body = [{"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "list_pages", "arguments": {}}}]
+    assert mcp_server.calls_signed_in_tool(json.dumps(body).encode()) is False
+    body[0]["params"]["name"] = "propose_change"
+    assert mcp_server.calls_signed_in_tool(json.dumps(body).encode()) is True
+    assert mcp_server.calls_signed_in_tool(b"not json") is False
 
 
 def test_init_prompt_connects_the_repository(mcp, configure):

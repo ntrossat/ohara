@@ -1,6 +1,6 @@
 # Configure
 
-Ohara has one setting, `OHARA_URL`. Everything else is configured in GitHub:
+Ohara has one setting, `OHARA_URL` (see [Install](../install/README.md#settings)). Everything else is configured in GitHub:
 
 | What | Where | Page |
 |---|---|---|

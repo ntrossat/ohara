@@ -98,6 +98,11 @@ def test_stamp_verified_keeps_the_rest_of_the_front_matter():
     assert freshness.stamp_verified("---\nverified: 2020-01-01\nowner: ada\n---\n# Page", day) == "---\nverified: 2026-10-05\nowner: ada\n---\n# Page"
 
 
+def test_set_field_reads_the_front_matter_of_windows_line_endings():
+    marked = freshness.set_field("---\r\nowner: ada\r\n---\r\n# Page\r\n", "source", '"acme/api:docs/page.md"')
+    assert marked == '---\nowner: ada\nsource: "acme/api:docs/page.md"\n---\n# Page\n'
+
+
 def test_covers_reads_repository_patterns():
     assert freshness.covers({"covers": "Acme/API:/src/*"}) == [("acme/api", "src/*")]
     assert freshness.covers({"covers": ["acme/api:src/*", "no-repository", 3]}) == [("acme/api", "src/*")]

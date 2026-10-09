@@ -13,18 +13,20 @@ Ohara has no user management of its own. It mirrors the docs repository's access
 
 To give someone access, add them to the repository, or to a team that can read it. To remove access, remove them on GitHub: they lose the website and the MCP server within 5 minutes, when Ohara checks again.
 
+Changing the repository's visibility on GitHub changes who can read Ohara as soon as the webhook arrives, and within 5 minutes without one.
+
 ## What people can do
 
 | Action | Needs |
 |---|---|
 | Read the website and the MCP server | Read access to a private docs repository, nothing for a public one |
-| Propose changes through MCP | Write access to the docs repository |
+| Propose changes through MCP | Write access to the docs repository. For a public docs repository too, the assistant signs in when it first proposes |
 | Merge pull requests | GitHub's own rules on the repository |
 
 ## Sign-in
 
 - **Website:** **Sign in with GitHub**. A session lasts 30 days without use.
-- **Coding assistants:** the assistant opens a GitHub sign-in in the browser on first use. Ohara then asks you to approve the assistant. Approve only an assistant you started yourself: a sign-in link from someone else would give them your access.
+- **Coding assistants and chat apps:** the assistant opens a GitHub sign-in in the browser on first use, or for a public docs repository, the first time it checks a repository or proposes a change. Ohara then asks you to approve the assistant. Its Ohara token lasts an hour and renews itself for 30 days without use. Approve only an assistant you started yourself: a sign-in link from someone else would give them your access.
 - **CI and headless agents:** send a GitHub token as `Authorization: Bearer <token>`. It needs read access to the docs repository, and write access to propose changes.
 
 GitHub tokens never leave the server. Coding assistants get short-lived Ohara tokens (prefix `oha_`) instead. See [Architecture](../developers/architecture.md#authentication) for the details.
