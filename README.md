@@ -34,17 +34,6 @@ From Claude Code, once connected to Ohara's MCP server:
 | `/ohara:review` | Reviews the project against the guidelines and docs |
 | `/ohara:ingest` | Imports existing docs from Confluence, Jira, Google Drive, and more, as pull requests |
 
-## Compared with other tools
-
-| | Ohara | Wikis (Confluence, Notion) | Docs sites (Docusaurus, MkDocs) |
-|---|---|---|---|
-| Every change reviewed as a pull request | ✓ | | ✓ |
-| One docs pull request per code branch | ✓ | | |
-| Pages flagged when the code they describe changes | ✓ | | |
-| One command connects a coding assistant to shared guidelines | ✓ | | |
-| Access mirrors the GitHub repository | ✓ | | |
-| Open source and self-hosted | ✓ | | ✓ |
-
 ## Quick start
 
 ```sh
@@ -60,12 +49,7 @@ Open `OHARA_URL`. The setup page creates a GitHub App: install it on your docs r
 claude mcp add --transport http ohara <OHARA_URL>/mcp
 ```
 
-The full documentation is in [`docs/`](docs/README.md): install, configure, use, and how it works inside.
-
-## Roadmap
-
-- An AI chat over the docs.
-- A Compose file that runs the published image instead of building it.
+The full documentation is at [ohara.trossat.com/docs](https://ohara.trossat.com/docs): install, configure, use, and how it works inside.
 
 ## Contributing
 
