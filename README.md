@@ -29,7 +29,7 @@ From Claude Code, once connected to Ohara's MCP server:
 
 | Command | What it does |
 |---|---|
-| `/ohara:init` | Sets up a project: the GitHub App, `.mcp.json`, and the guidelines in `CLAUDE.md` |
+| `/ohara:init` | Sets up a project: the GitHub App, `.mcp.json`, and the guidelines in `.claude/rules/ohara.md` |
 | `/ohara:update` | Proposes doc updates from the project's latest code changes |
 | `/ohara:review` | Reviews the project against the guidelines and docs |
 | `/ohara:ingest` | Imports existing docs from Confluence, Jira, Google Drive, and more, as pull requests |

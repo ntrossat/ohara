@@ -88,7 +88,7 @@ The repository is chosen once, at setup. To point Ohara to another one:
 
 1. Stop Ohara and remove its data: `docker compose down -v --rmi local`.
 2. Delete the GitHub App on GitHub, under **Settings › Developer settings › GitHub Apps** (for an organization, its settings). This also removes it from every repository.
-3. In each project set up with `/ohara:init`, remove the `ohara` server from `.mcp.json`, the "Ohara instructions" section from `CLAUDE.md`, the Ohara tools from `.claude/settings.json`, and `.ohara.yml`.
+3. In each project set up with `/ohara:init`, remove the `ohara` server from `.mcp.json`, `.claude/rules/ohara.md`, the Ohara tools from `.claude/settings.json`, and `.ohara.yml`.
 
 The docs repository and its pull requests stay on GitHub.
 

@@ -273,7 +273,8 @@ def file_for(path: str) -> str:
 INIT_PROMPT = """Set up this project so you use Ohara as the source of its documentation and engineering
 guidelines, check your work against the guidelines, and keep the documentation up to date.
 Ohara runs at {url} and its documentation lives in the {repo} repository. Work in the current project.
-Merge with existing files, never overwrite them, and replace any earlier Ohara setup so running this again is safe.
+Merge with existing files, never overwrite them (except .claude/rules/ohara.md, which Ohara owns), and replace any
+earlier Ohara setup so running this again is safe.
 
 1. Connect the repository. Read it from git remote ("owner/name") and call check_repository. If it is not
    connected and the result has a settings_url, open that page in the browser (open on macOS, xdg-open on Linux,
@@ -295,8 +296,8 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
 3. In .mcp.json at the project root, add the Ohara server so the whole team gets it:
    {"mcpServers": {"ohara": {"type": "http", "url": "{url}/mcp"}}}
 
-4. In CLAUDE.md (create it if missing), add or replace a single "## Ohara instructions" section (it replaces an
-   older "## Ohara" section) with:
+4. Write .claude/rules/ohara.md, replacing it if it exists. Claude Code loads it like CLAUDE.md. Start it with a
+   "# Ohara instructions" heading, then:
    - Ohara at {url} is the source of truth for documentation and engineering guidelines.
    - If this project has synced docs (the docs paths in its .ohara.yml): they live in this
      repository, at those paths, and Ohara syncs them. Update them in the same change as the code. Every other
@@ -312,6 +313,7 @@ Merge with existing files, never overwrite them, and replace any earlier Ohara s
        change affects in one propose_change, with the project's repository name and active git branch, so each
        code branch gets a single pull request to review. Put the docs pull request links in the code pull
        request's description.
+   If CLAUDE.md has an "## Ohara instructions" or "## Ohara" section from an earlier setup, remove it.
 
 5. In .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
    "mcp__ohara__search", "mcp__ohara__stale_pages", "mcp__ohara__check_repository". Leave propose_change out, so each proposal is confirmed.
@@ -334,7 +336,7 @@ change to Ohara.
 1. Find what changed. Use the scope the user gave, if any. Otherwise take the uncommitted changes and the commits
    on this branch that are not on the default branch. If there are none, ask the user what to document.
 
-2. Find the pages to check: the project docs listed in the "## Ohara instructions" section of CLAUDE.md, pages that search
+2. Find the pages to check: the project docs listed in .claude/rules/ohara.md, pages that search
    finds for the features, modules and names the changes touch, and stale_pages entries that name this repository.
    Pages whose source (from read_page) is in this repository are this project's synced docs: edit their source
    files here, in the working tree, instead of proposing them.
@@ -360,7 +362,7 @@ and its documentation lives in the {repo} repository. This is a review: change n
 
 1. Set the scope: what the user named, if anything; otherwise the whole project.
 
-2. Gather the guidelines that apply: the pages listed in the "## Ohara instructions" section of CLAUDE.md, then list_pages and
+2. Gather the guidelines that apply: the pages listed in .claude/rules/ohara.md, then list_pages and
    search for this project's languages, frameworks, domain and practices (security, testing, architecture, naming,
    dependencies, deployment). Read them all. Note the stale ones: their rules may be out of date.
 

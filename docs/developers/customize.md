@@ -25,7 +25,7 @@ Change the tokens to rebrand the whole site. The logo is drawn in `Mark.tsx`. Fo
 
 ## Assistant instructions
 
-The `/ohara:*` commands are MCP prompts in `backend/ohara/mcp_server.py`: `INIT_PROMPT`, `UPDATE_PROMPT`, `REVIEW_PROMPT`, and `INGEST_PROMPT`. Each is plain text, with `{url}` and `{repo}` filled in for the instance. Edit them to change what an assistant does, such as the sections `/ohara:init` writes in `CLAUDE.md`.
+The `/ohara:*` commands are MCP prompts in `backend/ohara/mcp_server.py`: `INIT_PROMPT`, `UPDATE_PROMPT`, `REVIEW_PROMPT`, and `INGEST_PROMPT`. Each is plain text, with `{url}` and `{repo}` filled in for the instance. Edit them to change what an assistant does, such as what `/ohara:init` writes in `.claude/rules/ohara.md`.
 
 To add a command, write a new prompt, such as `ONBOARD_PROMPT`, and register it:
 
