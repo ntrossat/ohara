@@ -1,5 +1,6 @@
 ---
 covers: [ntrossat/ohara:backend/ohara/*, ntrossat/ohara:frontend/src/*]
+verified: 2026-10-09
 ---
 
 # Architecture
@@ -35,7 +36,7 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | `Setup.tsx` | The setup page |
 | `Gate.tsx` | Sign-in and "no access" screens, and `Unreachable` when the server doesn't answer |
 | `Consent.tsx` | Approving an MCP client |
-| `Docs.tsx` | The docs reader: menu with a title filter (⌘K or Ctrl K), breadcrumbs, page, previous and next links, edit link, code blocks with a copy button, and sign out |
+| `Docs.tsx` | The docs reader: menu with a title filter (⌘K or Ctrl K), breadcrumbs, page, previous and next links, edit link, code blocks with a copy button, Mermaid diagrams, and sign out |
 | `nav.ts` | The reading order for previous and next links, and the breadcrumb trail |
 | `links.ts` | Resolves relative Markdown links to site routes and file URLs |
 | `Mark.tsx` | The Ohara logo |

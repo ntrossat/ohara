@@ -1,5 +1,6 @@
 ---
 covers: [ntrossat/ohara:Dockerfile, ntrossat/ohara:docker-compose.yml, ntrossat/ohara:Makefile, ntrossat/ohara:backend/ohara/config.py, ntrossat/ohara:frontend/src/Setup.tsx]
+verified: 2026-10-09
 ---
 
 # Install
