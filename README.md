@@ -14,7 +14,7 @@ Ohara is an open-source documentation manager. Your docs and engineering guideli
 
 ![Change a guideline once, and every project's assistant follows it in minutes](docs/ohara-decide.gif)
 
-[Watch the full video (1 min)](https://github.com/user-attachments/assets/907349e0-455d-41bb-b5ac-8ba392fcc995)
+[Watch the full video (1 min)](https://github.com/ntrossat/ohara/releases/download/v0.1.0/ohara-demo.mp4)
 
 ## Why Ohara
 
