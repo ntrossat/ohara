@@ -38,3 +38,4 @@ backend/ohara/static/
 
 # Local data dir
 backend/.data/
+.sandbox/
