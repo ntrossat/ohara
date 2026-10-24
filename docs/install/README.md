@@ -110,4 +110,5 @@ An app created without a webhook has no events. To move such an instance to a pu
 - [Lay out the docs repository](../configure/docs-repository.md).
 - [Connect code repositories](../configure/code-repositories.md).
 - [Connect a coding assistant](../use/coding-assistants.md).
+- [Deploy on Fly.io](fly-io.md).
 - [Operate Ohara in production](operate.md).

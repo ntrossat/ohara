@@ -49,6 +49,7 @@ Access mirrors the docs repository. A public repository makes a public website. 
 | I want to | Read |
 |---|---|
 | Install Ohara | [Install](install/README.md) |
+| Deploy on Fly.io | [Fly.io](install/fly-io.md) |
 | Run it in production | [Operate](install/operate.md) |
 | Lay out the docs repository | [Docs repository](configure/docs-repository.md) |
 | Connect code repositories | [Code repositories](configure/code-repositories.md) |
