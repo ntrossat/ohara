@@ -20,7 +20,7 @@ Guidelines:
 Project docs, in `docs/` (synced to `apps/ohara/`):
 
 - `docs/README.md`: what Ohara is and how it works, for engineers, and a glossary.
-- `docs/install/`: installing, setup, HTTPS, paths, and operating (data, updates, CD, troubleshooting).
+- `docs/install/`: installing, setup, HTTPS, paths, deploying on Fly.io, and operating (data, updates, CD, troubleshooting).
 - `docs/configure/`: the docs repository layout, code repositories (covers, docs pull requests from a code branch, `.ohara.yml` sync), and access.
 - `docs/use/`: coding assistants, the `/ohara:*` commands, chat apps, and the team workflow.
 - `docs/developers/`: architecture, API, development, and customizing.
