@@ -23,20 +23,17 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
-from mcp.server.mcpserver import Context
-from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import AnyHttpUrl, BaseModel
-
 from mcp.server.auth.routes import build_resource_metadata_url, create_auth_routes, create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import AnyHttpUrl, BaseModel
 from starlette.responses import JSONResponse
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
 from ohara import appdocs, config, db, docs, freshness, github, oauth, sessions, store
-from ohara.sessions import CHECK_INTERVAL
 
 SEARCH_LIMIT = 20
 
@@ -60,7 +57,7 @@ def list_pages() -> list[dict]:
         for node in nodes:
             if node["path"] is not None:
                 page = {"path": node["path"], "title": " / ".join([*parents, node["title"]])}
-                found = docs.read_page(root, node["path"]) if node["path"].startswith(f"{docs.APPS}/") else None
+                found = docs.read_page(root, node["path"]) if appdocs.synced(node["path"]) else None
                 if found and found["meta"].get("source"):
                     page["source"] = str(found["meta"]["source"])
                 pages.append(page)
@@ -319,7 +316,6 @@ earlier Ohara setup so running this again is safe. Other agents use the equivale
 
 5. If you are Claude Code, in .claude/settings.json, merge permissions.allow: "mcp__ohara__list_pages", "mcp__ohara__read_page",
    "mcp__ohara__search", "mcp__ohara__stale_pages", "mcp__ohara__check_repository". Leave propose_change out, so each proposal is confirmed.
-   Remove any Stop hook running .claude/hooks/ohara-check.sh from an earlier setup, and delete that file.
 
 6. Link the project docs to the code. Offer to propose one change that
    adds covers entries ("owner/repo:pattern", such as "acme/api:src/billing/*") to the front matter of each
@@ -510,7 +506,7 @@ async def authenticate(token: str, settings: dict) -> Caller | None:
             checked = await github.user_can_read(token, repo)
         except github.Unauthorized:
             return None
-        db.put("check", key, checked, time.time() + CHECK_INTERVAL)
+        db.put("check", key, checked, time.time() + sessions.CHECK_INTERVAL)
     return Caller(checked, token)
 
 

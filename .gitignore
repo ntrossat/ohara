@@ -30,9 +30,6 @@ npm-debug.log*
 # Claude
 .claude/settings.local.json
 
-# Superpowers
-docs/superpowers/
-
 # Frontend build copied into the backend image
 backend/ohara/static/
 

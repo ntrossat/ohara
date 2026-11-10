@@ -417,7 +417,6 @@ def test_init_prompt_sets_up_a_project(mcp, configure):
     text = result(rpc(mcp, "prompts/get", name="init"))["messages"][0]["content"]["text"]
     assert '"url": "https://docs.example.com/mcp"' in text
     assert REPO in text
-    assert "Remove any Stop hook" in text
 
 
 def test_init_prompt_requires_access(mcp, configure):

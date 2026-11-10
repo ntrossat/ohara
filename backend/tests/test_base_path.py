@@ -8,7 +8,7 @@ URL = "https://docs.example.com/docs"
 
 
 @pytest.fixture
-def prefixed(client, configure, monkeypatch):
+def prefixed(client, monkeypatch):
     monkeypatch.setenv("OHARA_URL", URL)
     return client
 
