@@ -64,7 +64,7 @@ Backend tests mock GitHub with `respx`, so they need no network. Each test gets 
 | `configure(private=True)` | A set-up instance with a docs repository and two pages |
 | `client` | A test client for the website and API |
 | `mcp` | A test client that runs the app's lifespan, with the docs sync turned off, for `/mcp` |
-| `synced` | A test client that records docs syncs instead of running them |
+| `synced` | Records docs syncs instead of running them, as a list of calls |
 | `app_credentials`, `pem` | GitHub App credentials and a private key |
 | `tarball(files)` | A repository tarball, as GitHub sends it |
 

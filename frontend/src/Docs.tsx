@@ -61,6 +61,7 @@ export default function Docs({ status }: Props) {
   }, [loaded]);
 
   const repoUrl = `https://github.com/${status.repo}`;
+  const shown = useMemo(() => (query ? filter(nav, query) : nav), [nav, query]);
   const pages = useMemo(() => readingOrder(nav), [nav]);
   const index = pages.findIndex((p) => p.path === loaded?.path);
   const previous = index > 0 ? pages[index - 1] : null;
@@ -115,8 +116,8 @@ export default function Docs({ status }: Props) {
             Overview
           </NavLink>
         )}
-        <Tree nodes={query ? filter(nav, query) : nav} expanded={query ? null : expanded} onToggle={toggle} />
-        {query && !matches("Overview", query) && filter(nav, query).length === 0 && (
+        <Tree nodes={shown} expanded={query ? null : expanded} onToggle={toggle} />
+        {query && !matches("Overview", query) && shown.length === 0 && (
           <p className="nav-empty">No pages match “{query}”</p>
         )}
         {status.user && (
@@ -131,61 +132,59 @@ export default function Docs({ status }: Props) {
 
       <main className="content">
         {loaded && (
-          <>
-            <article key={loaded.path} className="prose">
-              {loaded.path && (
-                <p className="breadcrumb">
-                  {trail(nav, loaded.path).map((crumb, i) => (
-                    <Fragment key={i}>
-                      {i > 0 && <span aria-hidden="true"> / </span>}
-                      {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span>{crumb.label}</span>}
-                    </Fragment>
-                  ))}
-                </p>
-              )}
-              {loaded.page ? (
-                <Markdown page={loaded.page} />
-              ) : loaded.path ? (
-                <Empty title="This page doesn't exist">
-                  It may have been moved or renamed in {status.repo}. <Link to="/">Go to the overview</Link>.
-                </Empty>
-              ) : (
-                <Empty title="Add an overview page">
-                  Create a <code>README.md</code> at the root of {status.repo}. It becomes this page once merged.
-                </Empty>
-              )}
+          <article key={loaded.path} className="prose">
+            {loaded.path && (
+              <p className="breadcrumb">
+                {trail(nav, loaded.path).map((crumb, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <span aria-hidden="true"> / </span>}
+                    {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span>{crumb.label}</span>}
+                  </Fragment>
+                ))}
+              </p>
+            )}
+            {loaded.page ? (
+              <Markdown page={loaded.page} />
+            ) : loaded.path ? (
+              <Empty title="This page doesn't exist">
+                It may have been moved or renamed in {status.repo}. <Link to="/">Go to the overview</Link>.
+              </Empty>
+            ) : (
+              <Empty title="Add an overview page">
+                Create a <code>README.md</code> at the root of {status.repo}. It becomes this page once merged.
+              </Empty>
+            )}
 
-              {loaded.page && (
-                <footer className="page-footer">
-                  <a
-                    className="suggest"
-                    href={loaded.page.source?.edit_url ?? `${repoUrl}/edit/${status.branch}/${loaded.page.file}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                      <path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z" />
-                    </svg>
-                    {loaded.page.source ? `suggest a change in ${loaded.page.source.repo}` : "suggest a change on GitHub"}
-                  </a>
-                  <div className="page-links">
-                    {previous && (
-                      <Link className="page-link" to={`/${previous.path}`}>
-                        <span className="label">previous</span>
-                        <span className="title">{previous.title}</span>
-                      </Link>
-                    )}
-                    {next && (
-                      <Link className="page-link next" to={`/${next.path}`}>
-                        <span className="label">next</span>
-                        <span className="title">{next.title}</span>
-                      </Link>
-                    )}
-                  </div>
-                </footer>
-              )}
-            </article>
-          </>
+            {loaded.page && (
+              <footer className="page-footer">
+                <a
+                  className="suggest"
+                  href={loaded.page.source?.edit_url ?? `${repoUrl}/edit/${status.branch}/${loaded.page.file}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                    <path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z" />
+                  </svg>
+                  {loaded.page.source ? `suggest a change in ${loaded.page.source.repo}` : "suggest a change on GitHub"}
+                </a>
+                <div className="page-links">
+                  {previous && (
+                    <Link className="page-link" to={`/${previous.path}`}>
+                      <span className="label">previous</span>
+                      <span className="title">{previous.title}</span>
+                    </Link>
+                  )}
+                  {next && (
+                    <Link className="page-link next" to={`/${next.path}`}>
+                      <span className="label">next</span>
+                      <span className="title">{next.title}</span>
+                    </Link>
+                  )}
+                </div>
+              </footer>
+            )}
+          </article>
         )}
       </main>
     </div>
@@ -261,6 +260,7 @@ const Chevron = () => (
 type TreeProps = { nodes: NavNode[]; expanded: Set<string> | null; onToggle: (folder: string, open?: boolean) => void; nested?: boolean };
 
 function Tree({ nodes, expanded, onToggle, nested }: TreeProps) {
+  const here = decodeURI(useLocation().pathname).replace(/^\/+|\/+$/g, "");
   // While searching (expanded is null), every folder is open.
   const isOpen = (folder: string) => !expanded || expanded.has(folder);
   return (
@@ -281,11 +281,8 @@ function Tree({ nodes, expanded, onToggle, nested }: TreeProps) {
                 <NavLink
                   to={`/${node.path}`}
                   end
-                  onClick={() => {
-                    // Opening the folder's page unfolds it; clicking it again while there folds it.
-                    const here = decodeURI(location.pathname).replace(/^\/+|\/+$/g, "") === node.path;
-                    onToggle(node.folder!, here ? !isOpen(node.folder!) : true);
-                  }}
+                  // Opening the folder's page unfolds it; clicking it again while there folds it.
+                  onClick={() => onToggle(node.folder!, here === node.path ? !isOpen(node.folder!) : true)}
                 >
                   {node.title}
                 </NavLink>
