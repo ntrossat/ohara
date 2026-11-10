@@ -27,6 +27,7 @@ SIGN_IN_TTL = 600  # seconds to come back from the GitHub sign-in
 REFRESH_INTERVAL = sessions.CHECK_INTERVAL  # a visibility change reaches readers as fast as an access change
 AUTH_METADATA = "/.well-known/oauth-authorization-server"
 RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
+EXPIRED_REQUEST = "Authorization request expired, connect again from your coding assistant"
 
 
 async def sync() -> None:
@@ -158,7 +159,7 @@ def can_read(settings: dict, session: sessions.Session | None) -> bool:
 def require_configured() -> dict:
     settings = store.load()
     if not store.configured(settings):
-        raise HTTPException(503, "Ohara is not set up yet: an admin finishes setup on the setup page")
+        raise HTTPException(503, store.NOT_CONFIGURED)
     return settings
 
 
@@ -325,7 +326,7 @@ async def auth_callback(request: Request, state: str, code: str = "") -> Redirec
         if saved.get("mcp"):
             denied = oauth.complete(saved["mcp"], None, "The user cancelled the GitHub sign-in")
             if not denied:
-                raise HTTPException(400, "Authorization request expired, connect again from your coding assistant")
+                raise HTTPException(400, EXPIRED_REQUEST)
             response = RedirectResponse(denied, 303)
         else:
             response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
@@ -341,7 +342,7 @@ async def auth_callback(request: Request, state: str, code: str = "") -> Redirec
     if saved.get("mcp"):
         if not oauth.describe(saved["mcp"]):
             sessions.drop(sid)
-            raise HTTPException(400, "Authorization request expired, connect again from your coding assistant")
+            raise HTTPException(400, EXPIRED_REQUEST)
         session = await sessions.current(sid, app_credentials, settings["repo"]["full_name"])
         if not can_read(settings, session):
             response = RedirectResponse(oauth.complete(saved["mcp"], sid, sessions.NO_ACCESS), 303)
@@ -362,7 +363,7 @@ def pending_consent(request: Request) -> tuple[str, dict]:
     consent = request.cookies.get(CONSENT_COOKIE, "")
     found = consent and db.get("consent", consent)
     if not found or not oauth.describe(found["request"]):
-        raise HTTPException(404, "Authorization request expired, connect again from your coding assistant")
+        raise HTTPException(404, EXPIRED_REQUEST)
     return consent, found
 
 
@@ -384,7 +385,7 @@ def consent_answer(answer: Answer, pending: tuple[str, dict] = Depends(pending_c
         found["request"], found["session"], None if answer.approve else "The user denied access"
     )
     if not redirect:
-        raise HTTPException(404, "Authorization request expired, connect again from your coding assistant")
+        raise HTTPException(404, EXPIRED_REQUEST)
     response = JSONResponse({"redirect": redirect})
     response.delete_cookie(CONSENT_COOKIE)
     return response
@@ -416,8 +417,8 @@ def page(path: str = "") -> dict:
 
 def source_of(page: dict) -> dict | None:
     """Where a synced page lives in its code repository, for the website's edit link."""
-    repo, _, path = str(page["meta"].get("source") or "").partition(":")
-    if not appdocs.synced(page["file"]) or not repo or not path:
+    repo, _, path = (appdocs.source(page) or "").partition(":")
+    if not repo or not path:
         return None
     branch = (appdocs.state(repo) or {}).get("branch") or "HEAD"
     return {"repo": repo, "path": path, "edit_url": f"{github.WEB}/{repo}/edit/{branch}/{path}"}

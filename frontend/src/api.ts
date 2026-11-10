@@ -22,24 +22,20 @@ export class HttpError extends Error {
   }
 }
 
-export async function get<T>(url: string): Promise<T> {
-  const response = await fetch(base + url, { credentials: "same-origin" });
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(base + url, { credentials: "same-origin", ...init });
   // Access lost (session ended or removed on GitHub): reload to show the sign-in screen.
   if (response.status === 401 || response.status === 403) location.reload();
   if (!response.ok) throw new HttpError(response.status);
   return response.json();
 }
 
-export async function post<T>(url: string, body: unknown): Promise<T> {
-  const response = await fetch(base + url, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (response.status === 401 || response.status === 403) location.reload();
-  if (!response.ok) throw new HttpError(response.status);
-  return response.json();
+export function get<T>(url: string): Promise<T> {
+  return request(url);
+}
+
+export function post<T>(url: string, body: unknown): Promise<T> {
+  return request(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 }
 
 export function signInUrl(next = location.pathname + location.hash) {

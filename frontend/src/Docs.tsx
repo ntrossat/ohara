@@ -6,16 +6,21 @@ import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { get, HttpError, signOut, type NavNode, type Page, type Status } from "./api";
 import { resolveLink } from "./links";
-import { Unreachable } from "./Gate";
+import { LockIcon, Unreachable } from "./Gate";
 import Mark from "./Mark";
 import { readingOrder, trail } from "./nav";
 
 type Props = { status: Extract<Status, { configured: true }> };
 type Loaded = { path: string; page: Page | null };
 
+/** The path of the page the router shows, without the base path or surrounding slashes. */
+function usePagePath(): string {
+  return decodeURI(useLocation().pathname).replace(/^\/+|\/+$/g, "");
+}
+
 export default function Docs({ status }: Props) {
   const location = useLocation();
-  const path = decodeURI(location.pathname).replace(/^\/+|\/+$/g, "");
+  const path = usePagePath();
   const [nav, setNav] = useState<NavNode[]>([]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -65,6 +70,7 @@ export default function Docs({ status }: Props) {
   const index = pages.findIndex((p) => p.path === loaded?.path);
   const previous = index > 0 ? pages[index - 1] : null;
   const next = index >= 0 && index < pages.length - 1 ? pages[index + 1] : null;
+  const shown = query ? filter(nav, query) : nav;
 
   if (unreachable) return <Unreachable />;
   return (
@@ -85,12 +91,7 @@ export default function Docs({ status }: Props) {
           <Mark />
         </Link>
         <a className="chip" href={repoUrl} target="_blank" rel="noreferrer">
-          {status.private && (
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-              <rect x="3" y="7" width="10" height="7" rx="1.5" />
-              <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
-            </svg>
-          )}
+          {status.private && <LockIcon />}
           {status.repo}
         </a>
         {status.user && (
@@ -115,8 +116,8 @@ export default function Docs({ status }: Props) {
             Overview
           </NavLink>
         )}
-        <Tree nodes={query ? filter(nav, query) : nav} expanded={query ? null : expanded} onToggle={toggle} />
-        {query && !matches("Overview", query) && filter(nav, query).length === 0 && (
+        <Tree nodes={shown} expanded={query ? null : expanded} onToggle={toggle} />
+        {query && !matches("Overview", query) && shown.length === 0 && (
           <p className="nav-empty">No pages match “{query}”</p>
         )}
         {status.user && (
@@ -131,61 +132,59 @@ export default function Docs({ status }: Props) {
 
       <main className="content">
         {loaded && (
-          <>
-            <article key={loaded.path} className="prose">
-              {loaded.path && (
-                <p className="breadcrumb">
-                  {trail(nav, loaded.path).map((crumb, i) => (
-                    <Fragment key={i}>
-                      {i > 0 && <span aria-hidden="true"> / </span>}
-                      {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span>{crumb.label}</span>}
-                    </Fragment>
-                  ))}
-                </p>
-              )}
-              {loaded.page ? (
-                <Markdown page={loaded.page} />
-              ) : loaded.path ? (
-                <Empty title="This page doesn't exist">
-                  It may have been moved or renamed in {status.repo}. <Link to="/">Go to the overview</Link>.
-                </Empty>
-              ) : (
-                <Empty title="Add an overview page">
-                  Create a <code>README.md</code> at the root of {status.repo}. It becomes this page once merged.
-                </Empty>
-              )}
+          <article key={loaded.path} className="prose">
+            {loaded.path && (
+              <p className="breadcrumb">
+                {trail(nav, loaded.path).map((crumb, i) => (
+                  <Fragment key={i}>
+                    {i > 0 && <span aria-hidden="true"> / </span>}
+                    {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : <span>{crumb.label}</span>}
+                  </Fragment>
+                ))}
+              </p>
+            )}
+            {loaded.page ? (
+              <Markdown page={loaded.page} />
+            ) : loaded.path ? (
+              <Empty title="This page doesn't exist">
+                It may have been moved or renamed in {status.repo}. <Link to="/">Go to the overview</Link>.
+              </Empty>
+            ) : (
+              <Empty title="Add an overview page">
+                Create a <code>README.md</code> at the root of {status.repo}. It becomes this page once merged.
+              </Empty>
+            )}
 
-              {loaded.page && (
-                <footer className="page-footer">
-                  <a
-                    className="suggest"
-                    href={loaded.page.source?.edit_url ?? `${repoUrl}/edit/${status.branch}/${loaded.page.file}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                      <path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z" />
-                    </svg>
-                    {loaded.page.source ? `suggest a change in ${loaded.page.source.repo}` : "suggest a change on GitHub"}
-                  </a>
-                  <div className="page-links">
-                    {previous && (
-                      <Link className="page-link" to={`/${previous.path}`}>
-                        <span className="label">previous</span>
-                        <span className="title">{previous.title}</span>
-                      </Link>
-                    )}
-                    {next && (
-                      <Link className="page-link next" to={`/${next.path}`}>
-                        <span className="label">next</span>
-                        <span className="title">{next.title}</span>
-                      </Link>
-                    )}
-                  </div>
-                </footer>
-              )}
-            </article>
-          </>
+            {loaded.page && (
+              <footer className="page-footer">
+                <a
+                  className="suggest"
+                  href={loaded.page.source?.edit_url ?? `${repoUrl}/edit/${status.branch}/${loaded.page.file}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                    <path d="M11 2.5l2.5 2.5L6 12.5H3.5V10z" />
+                  </svg>
+                  {loaded.page.source ? `suggest a change in ${loaded.page.source.repo}` : "suggest a change on GitHub"}
+                </a>
+                <div className="page-links">
+                  {previous && (
+                    <Link className="page-link" to={`/${previous.path}`}>
+                      <span className="label">previous</span>
+                      <span className="title">{previous.title}</span>
+                    </Link>
+                  )}
+                  {next && (
+                    <Link className="page-link next" to={`/${next.path}`}>
+                      <span className="label">next</span>
+                      <span className="title">{next.title}</span>
+                    </Link>
+                  )}
+                </div>
+              </footer>
+            )}
+          </article>
         )}
       </main>
     </div>
@@ -205,13 +204,7 @@ function Search({ value, onChange }: { value: string; onChange: (value: string) 
         target instanceof HTMLTextAreaElement ||
         (target instanceof HTMLElement && target.isContentEditable);
 
-      if (event.key === "/" && !typing) {
-        event.preventDefault();
-        input.current?.focus();
-        return;
-      }
-
-      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      if ((event.key === "/" && !typing) || ((event.metaKey || event.ctrlKey) && event.key === "k")) {
         event.preventDefault();
         input.current?.focus();
       }
@@ -261,6 +254,7 @@ const Chevron = () => (
 type TreeProps = { nodes: NavNode[]; expanded: Set<string> | null; onToggle: (folder: string, open?: boolean) => void; nested?: boolean };
 
 function Tree({ nodes, expanded, onToggle, nested }: TreeProps) {
+  const current = usePagePath();
   // While searching (expanded is null), every folder is open.
   const isOpen = (folder: string) => !expanded || expanded.has(folder);
   return (
@@ -283,8 +277,7 @@ function Tree({ nodes, expanded, onToggle, nested }: TreeProps) {
                   end
                   onClick={() => {
                     // Opening the folder's page unfolds it; clicking it again while there folds it.
-                    const here = decodeURI(location.pathname).replace(/^\/+|\/+$/g, "") === node.path;
-                    onToggle(node.folder!, here ? !isOpen(node.folder!) : true);
+                    onToggle(node.folder!, current === node.path ? !isOpen(node.folder!) : true);
                   }}
                 >
                   {node.title}

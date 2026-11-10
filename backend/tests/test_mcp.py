@@ -354,7 +354,7 @@ def test_proposal_from_a_chat_revises_its_open_pull_request(mcp, configure):
 @respx.mock
 def test_proposal_opens_a_new_pull_request_when_the_revised_one_is_closed(mcp, configure):
     configure(private=False)
-    ref, _, _, pull = mock_proposal()
+    ref, *_ = mock_proposal()
     head = {"ref": "ohara/old", "repo": {"full_name": REPO}}
     respx.get(f"{REPO_URL}/pulls/5").mock(return_value=httpx.Response(200, json={"state": "closed", "head": head}))
     assert result(call(mcp, "propose_change", token="ghp_1", pull_request="5", **PROPOSAL))["structuredContent"]["result"].endswith("/pull/7")

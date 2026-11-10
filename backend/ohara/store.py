@@ -2,6 +2,8 @@
 
 from ohara import db
 
+NOT_CONFIGURED = "Ohara is not set up yet: an admin finishes setup on the setup page"
+
 
 def load() -> dict:
     return db.all("settings")

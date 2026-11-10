@@ -23,21 +23,19 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
-from mcp.server.mcpserver import Context
-from mcp.server.mcpserver.exceptions import ToolError
-from pydantic import AnyHttpUrl, BaseModel
-
 from mcp.server.auth.routes import build_resource_metadata_url, create_auth_routes, create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import AnyHttpUrl, BaseModel
 from starlette.responses import JSONResponse
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
 from ohara import appdocs, config, db, docs, freshness, github, oauth, sessions, store
-from ohara.sessions import CHECK_INTERVAL
 
+log = logging.getLogger("ohara")
 SEARCH_LIMIT = 20
 
 server = MCPServer(
@@ -60,9 +58,9 @@ def list_pages() -> list[dict]:
         for node in nodes:
             if node["path"] is not None:
                 page = {"path": node["path"], "title": " / ".join([*parents, node["title"]])}
-                found = docs.read_page(root, node["path"]) if node["path"].startswith(f"{docs.APPS}/") else None
-                if found and found["meta"].get("source"):
-                    page["source"] = str(found["meta"]["source"])
+                found = docs.read_page(root, node["path"]) if appdocs.synced(node["path"]) else None
+                if found and appdocs.source(found):
+                    page["source"] = appdocs.source(found)
                 pages.append(page)
             walk(node["children"], [*parents, node["title"]])
 
@@ -93,8 +91,7 @@ def read_page(path: str) -> Page:
     found = docs.read_page(root, path)
     if not found:
         raise ToolError(f"Page not found: {path}")
-    source = found["meta"].get("source") if appdocs.synced(found["file"]) else None
-    return Page(title=found["title"], markdown=found["markdown"], source=source and str(source), **freshness.status(root, found))
+    return Page(title=found["title"], markdown=found["markdown"], source=appdocs.source(found), **freshness.status(root, found))
 
 
 @server.tool()
@@ -105,8 +102,8 @@ def search(query: str) -> list[dict]:
     for result in results:
         found = docs.read_page(root, result["path"])
         result["stale"] = freshness.status(root, found)["stale"] if found else []
-        if found and appdocs.synced(found["file"]) and found["meta"].get("source"):
-            result["source"] = str(found["meta"]["source"])
+        if found and appdocs.source(found):
+            result["source"] = appdocs.source(found)
     return results
 
 
@@ -202,8 +199,8 @@ async def propose_change(
     for page in pages:
         file = file_for(page.path)
         if appdocs.synced(file):
-            found = docs.read_page(config.docs_dir(), page.path.strip().strip("/").removesuffix(".md"))
-            source = (found or {}).get("meta", {}).get("source")
+            found = docs.read_page(config.docs_dir(), page_path(page.path))
+            source = found and appdocs.source(found)
             where = f"Edit {source} instead" if source else "Add new pages to the code repository's docs"
             raise ToolError(f"{page.path}: pages under {docs.APPS}/ are synced from code repositories. {where}, in the same change as the code")
         files[file] = freshness.stamp_verified(page.markdown, today)
@@ -258,9 +255,14 @@ def branch_for(title: str) -> str:
     return f"ohara/{slug}-{secrets.token_hex(3)}"
 
 
+def page_path(path: str) -> str:
+    """A page path as callers may write it, without surrounding slashes or the Markdown extension."""
+    return path.strip().strip("/").removesuffix(".md")
+
+
 def file_for(path: str) -> str:
     """The repository file of a page path: the existing file, or a new Markdown file."""
-    path = path.strip().strip("/").removesuffix(".md")
+    path = page_path(path)
     found = docs.read_page(config.docs_dir(), path)
     if found:
         return found["file"]
@@ -483,7 +485,7 @@ def oauth_routes() -> list[BaseRoute]:
             *create_protected_resource_routes(urls.resource_server_url, [base], resource_name="Ohara"),
         ]
     except ValueError as error:  # OAuth requires HTTPS outside localhost
-        logging.getLogger("ohara").warning("MCP sign-in disabled: %s", error)
+        log.warning("MCP sign-in disabled: %s", error)
         return []
 
 
@@ -510,7 +512,7 @@ async def authenticate(token: str, settings: dict) -> Caller | None:
             checked = await github.user_can_read(token, repo)
         except github.Unauthorized:
             return None
-        db.put("check", key, checked, time.time() + CHECK_INTERVAL)
+        db.put("check", key, checked, time.time() + sessions.CHECK_INTERVAL)
     return Caller(checked, token)
 
 
@@ -561,8 +563,7 @@ async def buffered(receive: Receive) -> tuple[bytes, Receive]:
 async def guarded(scope: Scope, receive: Receive, send: Send) -> None:
     settings = store.load()
     if not store.configured(settings):
-        detail = "Ohara is not set up yet: an admin finishes setup on the setup page"
-        return await JSONResponse({"detail": detail}, 503)(scope, receive, send)
+        return await JSONResponse({"detail": store.NOT_CONFIGURED}, 503)(scope, receive, send)
     header = dict(scope["headers"]).get(b"authorization", b"").decode()
     token = header[7:].strip() if header[:7].lower() == "bearer " else ""
     caller = await authenticate(token, settings) if token else None

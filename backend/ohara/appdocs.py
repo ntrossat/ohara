@@ -33,6 +33,12 @@ def synced(path: str) -> bool:
     return path.startswith(f"{docs.APPS}/")
 
 
+def source(page: dict) -> str | None:
+    """Where a synced page from docs.read_page lives in its code repository, as "owner/repo:path"."""
+    value = page["meta"].get("source") if synced(page["file"]) else None
+    return str(value) if value else None
+
+
 def state(full_name: str) -> dict | None:
     """The last sync of a code repository: its folder name, branch and paths, or why it was skipped."""
     return db.get("app", full_name.lower())
