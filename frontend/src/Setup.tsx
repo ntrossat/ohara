@@ -3,10 +3,10 @@ import { base, get, post } from "./api";
 import { GitHubIcon } from "./Gate";
 import Mark from "./Mark";
 
-type Props = { url: string; installUrl: string | null; installed: boolean };
+type Props = { url: string; installUrl: string | null; installed: boolean; locked: boolean };
 type Repository = { full_name: string; private: boolean };
 
-export default function Setup({ url, installUrl, installed }: Props) {
+export default function Setup({ url, installUrl, installed, locked }: Props) {
   const [org, setOrg] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -47,6 +47,7 @@ export default function Setup({ url, installUrl, installed }: Props) {
           <p className="setup-text">
             Everyone who can read the repository can read these docs, so a public repository makes them public.
           </p>
+          {locked && <p className="notice">Setup is locked. Open the setup link that came with this instance.</p>}
           {urlMismatch && (
             <p className="notice">
               This instance is set up for <code>{url}</code>, but you opened <code>{opened}</code>. GitHub will
@@ -55,6 +56,7 @@ export default function Setup({ url, installUrl, installed }: Props) {
           )}
         </div>
 
+        {!locked && (
         <ol className="steps">
           <li className={installed ? "done" : "current"}>
             <span className="step-number">01</span>
@@ -104,6 +106,7 @@ export default function Setup({ url, installUrl, installed }: Props) {
             </div>
           </li>
         </ol>
+        )}
       </main>
     </div>
   );

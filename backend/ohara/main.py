@@ -22,7 +22,10 @@ log = logging.getLogger("ohara")
 SESSION_COOKIE = "ohara_session"
 STATE_COOKIE = "ohara_state"
 CONSENT_COOKIE = "ohara_consent"
+SETUP_COOKIE = "ohara_setup"
+SETUP_LOCKED = "Setup is locked: open the setup link that came with this instance"
 SETUP_TTL = 600  # seconds to come back from GitHub with the new app
+SETUP_COOKIE_TTL = 86400  # seconds the setup link keeps setup unlocked in this browser
 SIGN_IN_TTL = 600  # seconds to come back from the GitHub sign-in
 REFRESH_INTERVAL = sessions.CHECK_INTERVAL  # a visibility change reaches readers as fast as an access change
 AUTH_METADATA = "/.well-known/oauth-authorization-server"
@@ -168,9 +171,21 @@ async def require_reader(request: Request, response: Response, settings: dict = 
         raise HTTPException(403, sessions.NO_ACCESS) if session else HTTPException(401, "Sign in with GitHub to read the documentation")
 
 
-def require_unconfigured() -> dict:
+def setup_unlocked(request: Request) -> bool:
+    """Without OHARA_SETUP_TOKEN, anyone can set Ohara up. With it, only the browser that opened the setup link."""
+    token = config.setup_token()
+    return not token or secrets.compare_digest(request.cookies.get(SETUP_COOKIE, ""), token)
+
+
+def require_setup_access(request: Request) -> None:
+    if not setup_unlocked(request):
+        raise HTTPException(403, SETUP_LOCKED)
+
+
+def require_unconfigured(request: Request) -> dict:
     if store.configured():
         raise HTTPException(409, "Ohara is already configured")
+    require_setup_access(request)
     return store.load()
 
 
@@ -186,6 +201,7 @@ async def status(request: Request, response: Response) -> dict:
             "url": config.base_url(),
             "install_url": github.install_url(settings["app"]) if settings.get("app") else None,
             "installed": bool(settings.get("installation_id")),
+            "locked": not setup_unlocked(request),
         }
     repo = settings["repo"]
     session = await viewer(request, response, settings)
@@ -200,6 +216,17 @@ async def status(request: Request, response: Response) -> dict:
 
 
 # Setup: GitHub App manifest flow
+
+
+@app.get("/api/setup/start")
+def setup_start(token: str) -> RedirectResponse:
+    """The setup link given to the admin when OHARA_SETUP_TOKEN is set: it unlocks setup in this browser for a day."""
+    expected = config.setup_token()
+    if not expected or not secrets.compare_digest(token, expected):
+        raise HTTPException(403, SETUP_LOCKED)
+    response = RedirectResponse(f"{config.base_path()}/setup", 303)
+    set_cookie(response, SETUP_COOKIE, token, max_age=SETUP_COOKIE_TTL)
+    return response
 
 
 @app.get("/api/setup/manifest", dependencies=[Depends(require_unconfigured)])
@@ -231,12 +258,16 @@ def require_app() -> dict:
 
 @app.get("/api/setup/installed")
 async def setup_installed(
-    background: BackgroundTasks, installation_id: int | None = None, settings: dict = Depends(require_app)
+    request: Request,
+    background: BackgroundTasks,
+    installation_id: int | None = None,
+    settings: dict = Depends(require_app),
 ) -> RedirectResponse:
     """GitHub redirects here after an install or a change of repositories; without an id, the setup page checks again.
     Once Ohara is configured, an admin who added a code repository returns to the website."""
     if store.configured(settings):
         return RedirectResponse(f"{config.base_path()}/", 303)
+    require_setup_access(request)
     if installation_id is None:
         # The app is private, so it has at most one installation: on the account that owns it.
         installations = await github.app_installations(settings["app"])
