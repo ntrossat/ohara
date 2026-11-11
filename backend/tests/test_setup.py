@@ -175,6 +175,7 @@ def test_status_guides_setup(client, app_credentials):
         "url": "https://docs.example.com",
         "install_url": None,
         "installed": False,
+        "locked": False,
     }
     store.save({"app": app_credentials})
     assert client.get("/api/status").json()["install_url"] == "https://github.com/apps/ohara-docs/installations/new"

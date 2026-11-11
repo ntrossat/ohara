@@ -15,6 +15,11 @@ def base_path() -> str:
     return urlparse(base_url()).path.rstrip("/")
 
 
+def setup_token() -> str | None:
+    """When set, only a browser that opened /api/setup/start with this token can set Ohara up."""
+    return os.environ.get("OHARA_SETUP_TOKEN") or None
+
+
 def data_dir() -> Path:
     """The data volume: the docs snapshot and the database."""
     return Path(os.environ.get("OHARA_DATA_DIR", "/data"))
