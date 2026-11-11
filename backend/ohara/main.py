@@ -137,8 +137,19 @@ def secure_cookies() -> bool:
     return config.base_url().startswith("https://")
 
 
+def cookie_path() -> str:
+    """Cookies stay under the path Ohara is served under, so other apps and instances on the host never see them."""
+    return config.base_path() or "/"
+
+
 def set_cookie(response: Response, name: str, value: str, max_age: int | None = None) -> None:
-    response.set_cookie(name, value, max_age=max_age, httponly=True, secure=secure_cookies(), samesite="lax")
+    response.set_cookie(
+        name, value, max_age=max_age, path=cookie_path(), httponly=True, secure=secure_cookies(), samesite="lax"
+    )
+
+
+def clear_cookie(response: Response, name: str) -> None:
+    response.delete_cookie(name, path=cookie_path())
 
 
 async def viewer(request: Request, response: Response, settings: dict) -> sessions.Session | None:
@@ -329,7 +340,7 @@ async def auth_callback(request: Request, state: str, code: str = "") -> Redirec
             response = RedirectResponse(denied, 303)
         else:
             response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
-        response.delete_cookie(STATE_COOKIE)
+        clear_cookie(response, STATE_COOKIE)
         return response
     app_credentials = settings["app"]
     try:
@@ -354,7 +365,7 @@ async def auth_callback(request: Request, state: str, code: str = "") -> Redirec
     else:
         response = RedirectResponse(safe_next(saved.get("next", "/")), 303)
         set_cookie(response, SESSION_COOKIE, sid, max_age=sessions.TTL)
-    response.delete_cookie(STATE_COOKIE)
+    clear_cookie(response, STATE_COOKIE)
     return response
 
 
@@ -386,7 +397,7 @@ def consent_answer(answer: Answer, pending: tuple[str, dict] = Depends(pending_c
     if not redirect:
         raise HTTPException(404, "Authorization request expired, connect again from your coding assistant")
     response = JSONResponse({"redirect": redirect})
-    response.delete_cookie(CONSENT_COOKIE)
+    clear_cookie(response, CONSENT_COOKIE)
     return response
 
 
@@ -394,7 +405,7 @@ def consent_answer(answer: Answer, pending: tuple[str, dict] = Depends(pending_c
 def logout(request: Request) -> RedirectResponse:
     sessions.drop(request.cookies.get(SESSION_COOKIE))
     response = RedirectResponse(f"{config.base_path()}/", 303)
-    response.delete_cookie(SESSION_COOKIE)
+    clear_cookie(response, SESSION_COOKIE)
     return response
 
 
