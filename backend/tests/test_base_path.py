@@ -41,3 +41,15 @@ def test_oauth_discovery_stays_at_the_root(prefixed, configure):
     metadata = "https://docs.example.com/.well-known/oauth-protected-resource/docs/mcp"
     assert response.headers["WWW-Authenticate"] == f'Bearer resource_metadata="{metadata}"'
     assert prefixed.get("/.well-known/oauth-authorization-server/docs").status_code == 200
+
+
+def test_cookies_stay_under_the_path(prefixed, configure):
+    """Another app or Ohara instance on the same host never receives or overwrites these cookies."""
+    configure(private=True)
+    assert "Path=/docs;" in prefixed.get("/docs/api/auth/login").headers["set-cookie"]
+    assert "Path=/docs;" in prefixed.post("/docs/api/auth/logout").headers["set-cookie"]
+
+
+def test_cookies_cover_the_host_at_the_root(client, configure):
+    configure(private=True)
+    assert "Path=/;" in client.get("/api/auth/login").headers["set-cookie"]

@@ -86,7 +86,7 @@ When `OHARA_SETUP_TOKEN` is set, every setup route answers `403` until the admin
 
 ### Website sign-in
 
-GitHub OAuth with a random `state` in a short-lived cookie. The callback exchanges the code for a user token and a refresh token, creates a session, and sets the `ohara_session` cookie. Every Ohara cookie is HttpOnly and SameSite=Lax, and Secure when `OHARA_URL` starts with `https://`. Each use renews the cookie, so a session ends after 30 days without use.
+GitHub OAuth with a random `state` in a short-lived cookie. The callback exchanges the code for a user token and a refresh token, creates a session, and sets the `ohara_session` cookie. Every Ohara cookie is HttpOnly and SameSite=Lax, Secure when `OHARA_URL` starts with `https://`, and scoped to the path of `OHARA_URL`. Each use renews the cookie, so a session ends after 30 days without use.
 
 ### MCP sign-in
 

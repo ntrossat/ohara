@@ -87,7 +87,7 @@ For a health check, use `GET OHARA_URL/api/status`. It answers `200` without sig
 
 ## Serve Ohara under a path
 
-`OHARA_URL` can include a path, such as `https://acme.com/docs`. Ohara then serves the website, the API, and the MCP server under that path, and redirects the rest of the host there. OAuth discovery for coding assistants stays at the root of the host, where clients look for it: `/.well-known/oauth-authorization-server/docs` and `/.well-known/oauth-protected-resource/docs/mcp`. When another app serves the rest of the host, the proxy must forward these two paths to Ohara too.
+`OHARA_URL` can include a path, such as `https://acme.com/docs`. Ohara then serves the website, the API, and the MCP server under that path, and redirects the rest of the host there. OAuth discovery for coding assistants stays at the root of the host, where clients look for it: `/.well-known/oauth-authorization-server/docs` and `/.well-known/oauth-protected-resource/docs/mcp`. When another app serves the rest of the host, the proxy must forward these two paths to Ohara too. Ohara's cookies stay under the path, so other apps on the host, including other Ohara instances under their own paths, never see them.
 
 To move an existing instance to a path, update the app's settings on GitHub: the callback URL to `OHARA_URL/api/auth/callback`, the Setup URL to `OHARA_URL/api/setup/installed`, and the webhook URL to `OHARA_URL/api/github/webhook`. Coding assistants and chat apps reconnect at `OHARA_URL/mcp`: their earlier sign-ins stop working.
 
