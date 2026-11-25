@@ -17,6 +17,7 @@ Before setup finishes, the docs routes and `/mcp` answer `503` with "Ohara is no
 | `GET /api/nav` | Readers | The menu, built from the folder tree |
 | `GET /api/page?path=` | Readers | A page's title, file, Markdown, and for a synced page its `source` (repository, path, edit URL) |
 | `GET /api/files/*` | Readers | Images and other files from the docs repository, with a strict Content-Security-Policy |
+| `GET /api/setup/start?token=&org=` | Everyone | The setup link, when `OHARA_SETUP_TOKEN` is set: unlocks setup in this browser for a day. With `org`, even empty, the setup page then goes straight to GitHub to create the app |
 | `GET /api/setup/manifest?org=` | Before setup | The GitHub App manifest and the form action. `org` creates the app under an organization |
 | `GET /api/setup/callback` | Before setup | GitHub's return after creating the app |
 | `GET /api/setup/installed` | Once the app exists | GitHub's return after an install. Picks the docs repository when the installation has only one. Redirects to the website once set up |

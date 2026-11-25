@@ -36,6 +36,12 @@ def test_start_sets_cookie_and_redirects(client, token):
     assert "ohara_setup=" in cookie and "HttpOnly" in cookie
 
 
+@pytest.mark.parametrize("org, location", [("", "/setup?org="), (" acme inc ", "/setup?org=acme%20inc")])
+def test_start_with_an_organization_goes_straight_to_github(client, token, org, location):
+    response = client.get("/api/setup/start", params={"token": TOKEN, "org": org})
+    assert response.headers["location"] == location
+
+
 def test_start_wrong_token(client, token):
     response = client.get("/api/setup/start", params={"token": "wrong"})
     assert response.status_code == 403

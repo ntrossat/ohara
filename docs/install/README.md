@@ -53,7 +53,7 @@ To build the image from source instead, clone the repository and run `make dev`:
 |---|---|---|
 | `OHARA_URL` | `http://localhost:8000` | The public address of Ohara, without a trailing slash. It can include a path |
 | `OHARA_DATA_DIR` | `/data` | Where Ohara keeps its data. For a run outside Docker |
-| `OHARA_SETUP_TOKEN` | Unset | Locks setup to the link `OHARA_URL/api/setup/start?token=<token>`, so a visitor can't claim a new instance first. For hosts that create instances for others |
+| `OHARA_SETUP_TOKEN` | Unset | Locks setup to the link `OHARA_URL/api/setup/start?token=<token>`, so a visitor can't claim a new instance first. With `&org=<organization>`, the link goes straight to GitHub to create the app, under that organization, or under the admin's personal account when `org` is empty. For hosts that create instances for others |
 | `OHARA_STATIC_DIR` | The built React app in the image | Where the React app lives. For a run outside Docker |
 
 Docker Compose reads `OHARA_URL` from `.env` and passes only that variable to the container. Outside Docker, set the variables in the shell: nothing reads `.env`.

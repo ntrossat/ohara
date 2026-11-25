@@ -13,13 +13,22 @@ export default function Setup({ url, installUrl, installed, locked }: Props) {
   const opened = location.origin + base;
   const urlMismatch = url !== opened;
 
-  async function createApp(event: FormEvent) {
-    event.preventDefault();
+  // A setup link that names the account goes straight to GitHub. The address loses the name first, so coming back
+  // from GitHub shows this page instead of leaving again.
+  useEffect(() => {
+    const named = new URLSearchParams(location.search).get("org");
+    if (named === null || installUrl || locked) return;
+    history.replaceState(null, "", location.pathname);
+    setOrg(named);
+    createApp(named);
+  }, []);
+
+  async function createApp(account: string) {
     setBusy(true);
     setError("");
     try {
       const { action, manifest } = await get<{ action: string; manifest: string }>(
-        `/api/setup/manifest?org=${encodeURIComponent(org.trim())}`,
+        `/api/setup/manifest?org=${encodeURIComponent(account.trim())}`,
       );
       const form = document.createElement("form");
       form.method = "post";
@@ -69,7 +78,12 @@ export default function Setup({ url, installUrl, installed, locked }: Props) {
                 is never shown with a public docs repository.
               </p>
               {!installUrl && (
-                <form onSubmit={createApp}>
+                <form
+                  onSubmit={(event: FormEvent) => {
+                    event.preventDefault();
+                    createApp(org);
+                  }}
+                >
                   <label htmlFor="org">Organization that owns the docs repository</label>
                   <input
                     id="org"

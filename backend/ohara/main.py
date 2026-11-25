@@ -8,6 +8,7 @@ import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
@@ -230,12 +231,15 @@ async def status(request: Request, response: Response) -> dict:
 
 
 @app.get("/api/setup/start")
-def setup_start(token: str) -> RedirectResponse:
-    """The setup link given to the admin when OHARA_SETUP_TOKEN is set: it unlocks setup in this browser for a day."""
+def setup_start(token: str, org: str | None = None) -> RedirectResponse:
+    """The setup link given to the admin when OHARA_SETUP_TOKEN is set: it unlocks setup in this browser for a day.
+    With `org`, the setup page goes straight to GitHub to create the app, under that organization, or under the
+    admin's personal account when it is empty."""
     expected = config.setup_token()
     if not expected or not secrets.compare_digest(token, expected):
         raise HTTPException(403, SETUP_LOCKED)
-    response = RedirectResponse(f"{config.base_path()}/setup", 303)
+    target = f"{config.base_path()}/setup" + ("" if org is None else f"?org={quote(org.strip(), safe='')}")
+    response = RedirectResponse(target, 303)
     set_cookie(response, SETUP_COOKIE, token, max_age=SETUP_COOKIE_TTL)
     return response
 

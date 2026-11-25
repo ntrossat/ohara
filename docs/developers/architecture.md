@@ -77,7 +77,7 @@ Every 5 minutes, Ohara also reads the docs repository's visibility and default b
 
 ### Setup
 
-When `OHARA_SETUP_TOKEN` is set, every setup route answers `403` until the admin opens `/api/setup/start?token=<token>`, which sets the HttpOnly `ohara_setup` cookie for a day. `/api/status` reports `locked`, and the setup page says to open the link.
+When `OHARA_SETUP_TOKEN` is set, every setup route answers `403` until the admin opens `/api/setup/start?token=<token>`, which sets the HttpOnly `ohara_setup` cookie for a day. With an `org` parameter, even empty, the setup page it leads to goes straight to GitHub to create the app, under that organization or under the admin's personal account. `/api/status` reports `locked`, and the setup page says to open the link.
 
 1. Ohara posts a manifest to GitHub with the app's callback URLs, webhook, events, and permissions. The admin confirms on GitHub.
 2. GitHub redirects to `/api/setup/callback`. Ohara checks the `state` it sent, which works once and for 10 minutes, and exchanges the code for the app's credentials (ID, slug, client ID and secret, webhook secret, private key).
