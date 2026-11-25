@@ -1,9 +1,10 @@
 # Ohara instructions
 
-Ohara, reached through the `ohara` MCP server in `.mcp.json`, is the source of truth for documentation and engineering guidelines. This project's own docs live in `docs/` and Ohara syncs them: update them in the same change as the code. Every other page lives in Ohara: propose changes to it, never add it to this repository.
+Ohara at https://documentation.oharadocs.app, reached through the `ohara` MCP server in `.mcp.json`, is the source of truth for documentation and engineering guidelines. This project's own docs live in `docs/` and Ohara syncs them: update them in the same change as the code. Every other page lives in Ohara: propose changes to it, never add it to this repository.
 
 Guidelines:
 
+- `guidelines`: index of the guidelines and how to use them.
 - `guidelines/principles`: product principles: beautiful, focused, simple by design, AI writes and humans approve, open source.
 - `guidelines/backend`: Python and FastAPI with `uv`: structure, style, state, requests and errors, external APIs.
 - `guidelines/frontend`: React, TypeScript, and Vite: structure, paths, styles, behavior, checks.
@@ -25,6 +26,15 @@ Project docs, in `docs/` (synced to `apps/ohara/`):
 - `docs/use/`: coding assistants, the `/ohara:*` commands, chat apps, and the team workflow.
 - `docs/developers/`: architecture, API, development, and customizing.
 - `docs/roadmap.md`: what is planned next.
+
+Project docs, in Ohara (step-by-step guides):
+
+- `documentation`: index of the guides.
+- `documentation/install-ohara`: installing with Docker Compose, connecting GitHub, and trying it on a computer.
+- `documentation/deploy`: running Ohara on a server the team can reach.
+- `documentation/connect-your-coding-agent`: using Ohara from Claude Code or another coding agent, and setting up each project.
+- `documentation/configure-your-ai-assistant`: asking questions from claude.ai, ChatGPT, or another chat app.
+- `documentation/import-existing-docs`: bringing in docs from Confluence, Google Drive, and other tools.
 
 Workflow:
 
