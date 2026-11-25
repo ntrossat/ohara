@@ -1,6 +1,6 @@
 ---
 covers: [ntrossat/ohara:frontend/src/styles.css, ntrossat/ohara:backend/ohara/mcp_server.py, ntrossat/ohara:backend/ohara/freshness.py, ntrossat/ohara:backend/ohara/appdocs.py]
-verified: 2026-10-09
+verified: 2026-11-25
 ---
 
 # Customize
@@ -13,12 +13,14 @@ The website's design lives in `frontend/src/styles.css`. Its first block defines
 
 | Token | Role |
 |---|---|
-| `--bg`, `--bg-2`, `--surface-3`, `--line` | Background, panels, small filled shapes, and borders |
-| `--ink`, `--text`, `--muted` | Titles, body text, secondary text |
-| `--clay`, `--clay-hover`, `--link`, `--on-clay` | The accent color, for buttons, the current page, and links, and text on it |
-| `--serif`, `--sans`, `--mono` | Title, interface, and code typefaces |
+| `--bg`, `--bg-2`, `--tint`, `--soft` | Background, panels, code blocks, and small filled shapes |
+| `--line`, `--line-soft`, `--line-strong` | Borders, the top bar's edge, and the borders of inputs and secondary buttons |
+| `--ink`, `--text`, `--muted`, `--faint` | Titles, body text, secondary text, and borders on hover |
+| `--clay`, `--clay-hover`, `--clay-soft`, `--link`, `--on-clay` | The accent color, for buttons and the current page, its soft shade for selected text, the link color, and text on the accent |
+| `--error` | Error messages |
+| `--sans`, `--mono` | Interface and code typefaces |
 | `--size-*`, `--space-*` | Type sizes and the 4px spacing scale |
-| `--radius-*`, `--border` | Shapes |
+| `--radius-*`, `--border`, `--shadow-card` | Shapes |
 | `--topbar-height`, `--menu-width`, `--content-width`, `--page-max` | Layout |
 | `--ease`, `--duration` | Motion |
 
