@@ -74,6 +74,7 @@ class Page(BaseModel):
     verified: str | None
     covers: list[str]
     stale: list[str]
+    order: float | None = None
     source: str | None = None
 
 
@@ -82,7 +83,8 @@ def read_page(path: str) -> Page:
     """Read a documentation page as Markdown. Use a path from list_pages or search; an empty path is the home page.
 
     Also returns the page's owner, the date a human last verified it, the code it covers ("owner/repo:pattern"),
-    and why it may be stale. Keep the owner and covers in the front matter when proposing a change to the page.
+    why it may be stale, and its order in the menu when it has one. Keep the owner, covers, and order in the front
+    matter when proposing a change to the page.
     Tell the user when a page you rely on is stale. Pages under apps/ are synced from code repositories: their
     source ("owner/repo:path") is the file to edit, in that repository.
     """
@@ -91,7 +93,13 @@ def read_page(path: str) -> Page:
     if not found:
         raise ToolError(f"Page not found: {path}")
     source = found["meta"].get("source") if appdocs.synced(found["file"]) else None
-    return Page(title=found["title"], markdown=found["markdown"], source=source and str(source), **freshness.status(root, found))
+    return Page(
+        title=found["title"],
+        markdown=found["markdown"],
+        order=docs.order_of(found["meta"]),
+        source=source and str(source),
+        **freshness.status(root, found),
+    )
 
 
 @server.tool()
