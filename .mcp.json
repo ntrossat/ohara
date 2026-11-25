@@ -2,7 +2,7 @@
   "mcpServers": {
     "ohara": {
       "type": "http",
-      "url": "https://ohara.trossat.com/docs/mcp"
+      "url": "https://documentation.oharadocs.app/mcp"
     }
   }
 }

@@ -8,7 +8,7 @@
 
 **Decide once. Every agent, developer, and project follows it in minutes.**
 
-**[Live demo](https://ohara.trossat.com/docs)**: Ohara's own docs, served by Ohara.
+**[Live demo](https://documentation.oharadocs.app)**: Ohara's own docs, served by Ohara.
 
 Ohara is an open-source documentation manager. Your docs and engineering guidelines live in one GitHub repository. People read them on a website, and AI agents read them through MCP. When the code changes, AI proposes the matching doc update as a pull request, and a human merges it.
 
@@ -57,7 +57,7 @@ Open `http://localhost:8000`. For a public address, set `OHARA_URL` in a `.env` 
 claude mcp add --transport http ohara <OHARA_URL>/mcp
 ```
 
-The full documentation is at [ohara.trossat.com/docs](https://ohara.trossat.com/docs): install, configure, use, and how it works inside.
+The full documentation is at [documentation.oharadocs.app](https://documentation.oharadocs.app): install, configure, use, and how it works inside.
 
 ## Contributing
 
