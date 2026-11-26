@@ -1,16 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 304" width="760" height="304" role="img" aria-label="People read Ohara on the website and AI agents through MCP. Ohara reads the docs repository and opens pull requests through its GitHub App, and code repository pushes flag stale pages.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-      <path d="M0 0L10 5L0 10z" fill="#a6a39a"/>
+      <path d="M0 0L10 5L0 10z" fill="#63636b"/>
     </marker>
     <style>
-      .panel { fill: #1c1b19; stroke: #2c2b28; }
-      .node { fill: #2a2926; stroke: #3d3b37; stroke-width: 1.5; }
-      .main { fill: #2a2926; stroke: #d97757; stroke-width: 1.5; }
-      .edge { fill: none; stroke: #a6a39a; stroke-width: 1.5; marker-end: url(#arrow); }
+      .panel { fill: #fafafa; stroke: #e4e4e7; }
+      .node { fill: #ffffff; stroke: #d4d4d8; stroke-width: 1.5; }
+      .main { fill: #ffffff; stroke: #ff6b1a; stroke-width: 1.5; }
+      .edge { fill: none; stroke: #63636b; stroke-width: 1.5; marker-end: url(#arrow); }
       .both { marker-start: url(#arrow); }
-      .title { fill: #faf9f5; font: 600 15px Manrope, "Manrope Variable", system-ui, sans-serif; text-anchor: middle; }
-      .sub { fill: #a6a39a; font: 12px "JetBrains Mono", ui-monospace, monospace; text-anchor: middle; }
+      .title { fill: #18181b; font: 600 15px Geist, "Geist Variable", system-ui, sans-serif; text-anchor: middle; }
+      .sub { fill: #63636b; font: 12px "Geist Mono", "Geist Mono Variable", ui-monospace, monospace; text-anchor: middle; }
     </style>
   </defs>
   <rect class="panel" x="0.5" y="0.5" width="759" height="303" rx="14"/>

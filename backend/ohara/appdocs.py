@@ -1,6 +1,6 @@
-"""App docs: the docs that live in code repositories, shown under apps/<repo>/ of the website.
+"""App docs: the docs that live in code repositories, shown under repositories/<repo>/ of the website.
 
-The code repository is the source of truth: each sync downloads it and replaces its apps/<repo>/ folder in the
+The code repository is the source of truth: each sync downloads it and replaces its repositories/<repo>/ folder in the
 local docs snapshot. Nothing is written to the docs repository. Each synced page gets a `source` front matter
 field ("owner/repo:path") that points to its file in the code repository.
 
@@ -26,11 +26,11 @@ log = logging.getLogger("ohara")
 
 
 def folder(name: str) -> str:
-    return f"{docs.APPS}/{name}"
+    return f"{docs.REPOSITORIES}/{name}"
 
 
 def synced(path: str) -> bool:
-    return path.startswith(f"{docs.APPS}/")
+    return path.startswith(f"{docs.REPOSITORIES}/")
 
 
 def state(full_name: str) -> dict | None:
@@ -43,7 +43,7 @@ def private_into_public(code_private: bool, settings: dict) -> bool:
 
 
 async def sync(settings: dict, full_name: str, ref: str | None = None) -> None:
-    """Replace the apps/<repo>/ folder of the snapshot with a code repository's docs at `ref`."""
+    """Replace the repositories/<repo>/ folder of the snapshot with a code repository's docs at `ref`."""
     if full_name.lower() == settings["repo"]["full_name"].lower():
         return
     token = await github.installation_token(settings["app"], settings["installation_id"])
@@ -73,7 +73,7 @@ async def sync(settings: dict, full_name: str, ref: str | None = None) -> None:
 
 
 def read(archive: bytes, full_name: str, paths: list[str]) -> dict[str, bytes]:
-    """The synced files of a repository tarball, by their path under apps/<repo>/."""
+    """The synced files of a repository tarball, by their path under repositories/<repo>/."""
     found = {}
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as tar:
         for member in tar.getmembers():
@@ -106,8 +106,8 @@ def write(target: Path, files: dict[str, bytes]) -> None:
 
 
 def orphans(root: Path, names: set[str]) -> list[str]:
-    """The folders under apps/ in the snapshot that belong to no repository on the installation."""
-    apps = root / docs.APPS
+    """The folders under repositories/ in the snapshot that belong to no repository on the installation."""
+    apps = root / docs.REPOSITORIES
     folders = [entry.name for entry in apps.iterdir() if entry.is_dir()] if apps.is_dir() else []
     return sorted(name for name in folders if name not in names and not name.startswith("."))
 

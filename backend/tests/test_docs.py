@@ -71,6 +71,18 @@ def test_pages_are_sorted_by_title(tmp_path):
     assert [n["title"] for n in docs.build_nav(tmp_path)] == ["Alpha", "mike", "Zulu"]
 
 
+def test_pages_with_an_order_come_first_then_the_rest_by_title(tmp_path):
+    write(tmp_path, "a.md", "# Alpha")
+    write(tmp_path, "b.md", "---\norder: 2\n---\n# Bravo")
+    write(tmp_path, "c/README.md", "---\norder: 1\n---\n# Charlie")
+    write(tmp_path, "c/y.md", "# Yankee")
+    write(tmp_path, "c/z.md", "---\norder: 1.5\n---\n# Zulu")
+    write(tmp_path, "d.md", "---\norder: first\n---\n# Delta")
+    nav = docs.build_nav(tmp_path)
+    assert [n["title"] for n in nav] == ["Charlie", "Bravo", "Alpha", "Delta"]
+    assert [n["title"] for n in nav[0]["children"]] == ["Zulu", "Yankee"]
+
+
 def test_read_page_strips_front_matter_and_finds_index(tmp_path):
     write(tmp_path, "README.md", "---\nowner: ada\n---\n# Home\nWelcome")
     write(tmp_path, "guides/index.md", "# Guides")

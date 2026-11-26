@@ -74,6 +74,7 @@ class Page(BaseModel):
     verified: str | None
     covers: list[str]
     stale: list[str]
+    order: float | None = None
     source: str | None = None
 
 
@@ -82,8 +83,9 @@ def read_page(path: str) -> Page:
     """Read a documentation page as Markdown. Use a path from list_pages or search; an empty path is the home page.
 
     Also returns the page's owner, the date a human last verified it, the code it covers ("owner/repo:pattern"),
-    and why it may be stale. Keep the owner and covers in the front matter when proposing a change to the page.
-    Tell the user when a page you rely on is stale. Pages under apps/ are synced from code repositories: their
+    why it may be stale, and its order in the menu when it has one. Keep the owner, covers, and order in the front
+    matter when proposing a change to the page.
+    Tell the user when a page you rely on is stale. Pages under repositories/ are synced from code repositories: their
     source ("owner/repo:path") is the file to edit, in that repository.
     """
     root = config.docs_dir()
@@ -91,7 +93,13 @@ def read_page(path: str) -> Page:
     if not found:
         raise ToolError(f"Page not found: {path}")
     source = found["meta"].get("source") if appdocs.synced(found["file"]) else None
-    return Page(title=found["title"], markdown=found["markdown"], source=source and str(source), **freshness.status(root, found))
+    return Page(
+        title=found["title"],
+        markdown=found["markdown"],
+        order=docs.order_of(found["meta"]),
+        source=source and str(source),
+        **freshness.status(root, found),
+    )
 
 
 @server.tool()
@@ -118,7 +126,7 @@ class Connection(BaseModel):
     connected: bool
     reason: str = ""
     settings_url: str = ""
-    docs: list[str] = []  # the paths synced into apps/<repo>/
+    docs: list[str] = []  # the paths synced into repositories/<repo>/
     synced_folder: str = ""
 
 
@@ -186,7 +194,7 @@ async def propose_change(
     Without a code branch, as in a chat, pass the URL of a pull request proposed earlier in the conversation to
     revise it while it is open, instead of opening a new one.
 
-    Pages under apps/ are synced from code repositories and can't be proposed: edit their source file in that
+    Pages under repositories/ are synced from code repositories and can't be proposed: edit their source file in that
     repository instead, in the same change as the code.
     """
     caller: Caller | None = ctx.request_context.request.state.caller
@@ -202,7 +210,7 @@ async def propose_change(
             found = docs.read_page(config.docs_dir(), page.path.strip().strip("/").removesuffix(".md"))
             source = (found or {}).get("meta", {}).get("source")
             where = f"Edit {source} instead" if source else "Add new pages to the code repository's docs"
-            raise ToolError(f"{page.path}: pages under {docs.APPS}/ are synced from code repositories. {where}, in the same change as the code")
+            raise ToolError(f"{page.path}: pages under {docs.REPOSITORIES}/ are synced from code repositories. {where}, in the same change as the code")
         files[file] = freshness.stamp_verified(page.markdown, today)
     if not files:
         raise ToolError("No pages to change")
@@ -278,7 +286,7 @@ earlier Ohara setup so running this again is safe. Other agents use the equivale
    start on Windows) and ask the user to add this repository to the Ohara GitHub App installation, which needs an
    admin of the account. Wait for the user, then call check_repository again. If the user skips, or the result has
    no settings_url, go on and report the reason at the end.
-   Once connected, Ohara syncs this project's docs into apps/<repository name>/ on each push to the default
+   Once connected, Ohara syncs this project's docs into repositories/<repository name>/ on each push to the default
    branch, but only if the project has a .ohara.yml at its root. If it has none and keeps docs in this repository
    (such as docs/, doc/, documentation/ or README.md), list them and offer to write .ohara.yml with them, docs/
    first when it exists:

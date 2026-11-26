@@ -355,20 +355,19 @@ function CodeBlock({ children, language, source }: { children: ReactNode; langua
 function mermaidTheme() {
   const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return {
-    darkMode: true,
-    background: token("--bg-2"),
+    background: token("--tint"),
     fontFamily: token("--sans"),
     fontSize: "14px",
-    primaryColor: token("--surface-3"),
+    primaryColor: token("--bg-2"),
     primaryTextColor: token("--ink"),
     primaryBorderColor: token("--clay"),
-    secondaryColor: token("--bg"),
-    tertiaryColor: token("--bg"),
+    secondaryColor: token("--soft"),
+    tertiaryColor: token("--soft"),
     lineColor: token("--muted"),
     textColor: token("--text"),
-    clusterBkg: token("--bg"),
+    clusterBkg: token("--soft"),
     clusterBorder: token("--line"),
-    edgeLabelBackground: token("--bg-2"),
+    edgeLabelBackground: token("--tint"),
   };
 }
 

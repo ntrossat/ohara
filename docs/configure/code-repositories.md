@@ -50,7 +50,7 @@ docs:
   - docs
 ```
 
-Ohara then shows those docs under `apps/<repository name>/` on the website and through MCP. It downloads them into its own copy of the docs, and never commits them to the docs repository. It syncs them:
+Ohara then shows those docs under `repositories/<repository name>/` on the website and through MCP. It downloads them into its own copy of the docs, and never commits them to the docs repository. It syncs them:
 
 - on each push to the default branch that changes them or `.ohara.yml`;
 - when the app is added to the repository, when the docs repository is chosen at setup, and on each Ohara start.
@@ -62,11 +62,11 @@ Ohara then shows those docs under `apps/<repository name>/` on the website and t
 | `docs: [...]` | The listed folders and files. `.` is ignored: list folders and files by name |
 | `docs:` with no value, or `docs: []` | Nothing |
 
-- The contents of a listed folder go to the root of `apps/<repository name>/`: `docs/billing.md` becomes `apps/api/billing.md`.
-- A listed file goes to the root by its name: `README.md` becomes `apps/api/README.md`, the folder's page.
+- The contents of a listed folder go to the root of `repositories/<repository name>/`: `docs/billing.md` becomes `repositories/api/billing.md`.
+- A listed file goes to the root by its name: `README.md` becomes `repositories/api/README.md`, the folder's page.
 - Markdown files and images (`png`, `jpg`, `jpeg`, `gif`, `svg`, `webp`) up to 1 MB each are synced, up to 500 per repository. Other files, such as videos and PDFs, larger files, files past the 500th, hidden files, and symbolic links are skipped without a warning.
 - Each synced page gets a `source` field, such as `source: "acme/api:docs/billing.md"`. The website's edit link goes to that file, and coding assistants edit it in the code repository.
-- `apps/` belongs to Ohara: files under `apps/` in the docs repository are ignored.
+- `repositories/` belongs to Ohara: files under `repositories/` in the docs repository are ignored.
 - Paths are normalized, so `./docs/` is `docs`. When two entries land on the same path, the first one in the list wins. Absolute paths and paths that leave the repository root are ignored.
 - If `.ohara.yml` isn't valid YAML, isn't a mapping, or has a `docs` value that isn't a list, Ohara keeps the last synced copy and logs the error.
 - Ohara downloads the whole repository at the commit to read its docs.

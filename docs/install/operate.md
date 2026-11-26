@@ -105,7 +105,7 @@ The docs repository and its pull requests stay on GitHub.
 | The API or MCP server answers "Ohara is not set up yet" | Setup didn't finish. Open `OHARA_URL` and complete it |
 | Coding assistants can't sign in | MCP sign-in needs an `https://` address or `localhost`. Otherwise, send a GitHub token as `Authorization: Bearer` |
 | A proposal fails with a permissions error | The app lacks write permissions. Grant **Contents** and **Pull requests** write in the app's settings, then accept them on the installation |
-| A code repository's docs don't appear under `apps/` | The repository needs a `.ohara.yml`, the app must be installed on it, and a private code repository is never synced into a public docs repository. Ask a coding assistant to call `check_repository` for the reason |
+| A code repository's docs don't appear under `repositories/` | The repository needs a `.ohara.yml`, the app must be installed on it, and a private code repository is never synced into a public docs repository. Ask a coding assistant to call `check_repository` for the reason |
 | Someone still reads the docs after losing access | Access is checked again every 5 minutes, so it ends within 5 minutes |
 
 Logs go to the container's output, at the `INFO` level: `docker compose logs -f`.

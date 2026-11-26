@@ -58,10 +58,10 @@ async def safe_sync() -> None:
 
 async def startup() -> None:
     await safe_sync()
-    await safe_sync_apps()
+    await safe_sync_repositories()
 
 
-async def sync_apps() -> None:
+async def sync_repositories() -> None:
     """Sync the docs of every code repository on the installation, and remove the synced folders of
     repositories that are no longer on it."""
     settings = store.load()
@@ -74,9 +74,9 @@ async def sync_apps() -> None:
         await appdocs.remove(f"{owner}/{name}")
 
 
-async def safe_sync_apps() -> None:
+async def safe_sync_repositories() -> None:
     try:
-        await sync_apps()
+        await sync_repositories()
     except Exception:
         log.exception("app docs sync failed")
 
@@ -96,7 +96,7 @@ async def refresh() -> None:
     repo = github.repo_summary(await github.get_repo(token, settings["repo"]["full_name"]))
     if repo != settings["repo"]:
         await safe_sync()
-        await safe_sync_apps()
+        await safe_sync_repositories()
         return
     if not repo["private"]:
         for code in await github.installation_repos(token):
@@ -129,6 +129,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(startup())
     refreshing = asyncio.create_task(refresh_loop())
     async with mcp_server.run():
+        log.info("Ohara is running at %s", config.base_url())
         yield
     refreshing.cancel()
     await github.close()
@@ -309,7 +310,7 @@ async def choose_repository(repo: dict, background: BackgroundTasks) -> None:
     same installation sync after the answer, as they can take longer than a proxy waits."""
     store.update(repo=github.repo_summary(repo))
     await safe_sync()
-    background.add_task(safe_sync_apps)
+    background.add_task(safe_sync_repositories)
 
 
 def require_installed(settings: dict = Depends(require_unconfigured)) -> dict:
@@ -497,7 +498,7 @@ async def webhook(request: Request, background: BackgroundTasks) -> dict:
             background.add_task(safe_sync_app, added["full_name"])
         for removed in payload.get("repositories_removed", []):
             background.add_task(safe_remove_app, removed["full_name"])
-        return {"synced": False, "apps": True}
+        return {"synced": False, "repositories": True}
     source = payload.get("repository") or {}
     if not repo or not source.get("full_name"):
         return {"synced": False}
@@ -511,7 +512,7 @@ async def webhook(request: Request, background: BackgroundTasks) -> dict:
         return {"synced": True}
     if event == "repository":
         background.add_task(safe_sync)
-        background.add_task(safe_sync_apps)  # a change of visibility changes which code repositories sync
+        background.add_task(safe_sync_repositories)  # a change of visibility changes which code repositories sync
         return {"synced": True}
     return {"synced": False}
 

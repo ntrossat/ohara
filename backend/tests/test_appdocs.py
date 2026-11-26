@@ -74,13 +74,13 @@ def run_sync(ref=None):
 
 
 def synced_files(data_dir):
-    folder = data_dir / "docs" / "apps" / "api"
+    folder = data_dir / "docs" / "repositories" / "api"
     return {file.relative_to(folder).as_posix(): file.read_text() for file in folder.rglob("*") if file.is_file()} if folder.exists() else {}
 
 
 def add_synced_folder(data_dir):
-    (data_dir / "docs" / "apps" / "api").mkdir(parents=True)
-    (data_dir / "docs" / "apps" / "api" / "old.md").write_text("# Old")
+    (data_dir / "docs" / "repositories" / "api").mkdir(parents=True)
+    (data_dir / "docs" / "repositories" / "api" / "old.md").write_text("# Old")
 
 
 @respx.mock
@@ -90,7 +90,7 @@ def test_sync_writes_the_docs_folder_with_its_source(configure, data_dir):
     run_sync("abcdef1234567890")
     assert synced_files(data_dir) == {"README.md": '---\nsource: "acme/api:docs/README.md"\n---\n\n# API', "img/logo.png": "png"}
     assert appdocs.state("acme/api") == {"name": "api", "branch": "main", "paths": ["docs"], "skipped": None}
-    assert docs.search("API", 5)[0]["path"] == "apps/api"
+    assert docs.search("API", 5)[0]["path"] == "repositories/api"
 
 
 @respx.mock
@@ -215,7 +215,7 @@ def test_remove_deletes_the_folder(configure, data_dir):
 def test_a_docs_repository_sync_keeps_the_synced_folders(data_dir):
     root = data_dir / "docs"
     add_synced_folder(data_dir)
-    docs.extract(tarball({"guide.md": "# Guide", "apps/api/stale.md": "# Committed by hand"}), root)
+    docs.extract(tarball({"guide.md": "# Guide", "repositories/api/stale.md": "# Committed by hand"}), root)
     assert (root / "guide.md").exists()
     assert set(synced_files(data_dir)) == {"old.md"}
 
@@ -240,7 +240,7 @@ def calls(monkeypatch):
     async def remove_app(full_name):
         seen.append(("remove", full_name))
 
-    async def sync_apps():
+    async def sync_repositories():
         seen.append(("sync all",))
 
     async def nothing(*_):
@@ -248,7 +248,7 @@ def calls(monkeypatch):
 
     monkeypatch.setattr(main, "safe_sync_app", sync_app)
     monkeypatch.setattr(main, "safe_remove_app", remove_app)
-    monkeypatch.setattr(main, "safe_sync_apps", sync_apps)
+    monkeypatch.setattr(main, "safe_sync_repositories", sync_repositories)
     monkeypatch.setattr(main, "safe_sync", nothing)
     return seen
 
@@ -256,7 +256,7 @@ def calls(monkeypatch):
 def test_added_and_removed_repositories_are_synced(client, configure, calls):
     configure(private=False)
     payload = {"installation": {"id": 42}, "repositories_added": [{"full_name": "acme/api"}], "repositories_removed": [{"full_name": "acme/web"}]}
-    assert send(client, "installation_repositories", payload).json()["apps"] is True
+    assert send(client, "installation_repositories", payload).json()["repositories"] is True
     assert calls == [("sync", "acme/api", None), ("remove", "acme/web")]
 
 
@@ -295,18 +295,18 @@ def test_a_push_without_a_config_file_does_not_sync(configure, calls):
 def test_synced_pages_link_to_their_source(client, configure, data_dir):
     configure(private=False)
     db.put("app", "acme/api", {"name": "api", "branch": "trunk", "paths": ["docs"], "skipped": None})
-    (data_dir / "docs" / "apps" / "api").mkdir(parents=True)
-    (data_dir / "docs" / "apps" / "api" / "billing.md").write_text('---\nsource: "acme/api:docs/billing.md"\n---\n\n# Billing')
+    (data_dir / "docs" / "repositories" / "api").mkdir(parents=True)
+    (data_dir / "docs" / "repositories" / "api" / "billing.md").write_text('---\nsource: "acme/api:docs/billing.md"\n---\n\n# Billing')
     (data_dir / "docs" / "faked.md").write_text('---\nsource: "acme/api:docs/x.md"\n---\n\n# Faked')
-    page = client.get("/api/page", params={"path": "apps/api/billing"}).json()
+    page = client.get("/api/page", params={"path": "repositories/api/billing"}).json()
     assert page["source"] == {"repo": "acme/api", "path": "docs/billing.md", "edit_url": "https://github.com/acme/api/edit/trunk/docs/billing.md"}
     assert client.get("/api/page", params={"path": "faked"}).json()["source"] is None
 
 
-def test_sync_apps_syncs_every_repository_and_removes_orphan_folders(configure, data_dir, monkeypatch):
+def test_sync_repositories_syncs_every_repository_and_removes_orphan_folders(configure, data_dir, monkeypatch):
     configure(private=False)
     for name in ("api", "gone"):
-        (data_dir / "docs" / "apps" / name).mkdir(parents=True)
+        (data_dir / "docs" / "repositories" / name).mkdir(parents=True)
     seen = []
 
     async def token(*_):
@@ -325,7 +325,7 @@ def test_sync_apps_syncs_every_repository_and_removes_orphan_folders(configure, 
     monkeypatch.setattr(main.github, "installation_repos", repos)
     monkeypatch.setattr(main.appdocs, "sync", sync)
     monkeypatch.setattr(main.appdocs, "remove", remove)
-    asyncio.run(main.sync_apps())
+    asyncio.run(main.sync_repositories())
     assert seen == [("sync", "acme/api"), ("sync", "acme/web"), ("remove", "acme/gone")]
 
 
@@ -346,7 +346,7 @@ def refresh_mocks(monkeypatch, docs_repo, code_repos, seen):
     monkeypatch.setattr(main.github, "get_repo", get_repo)
     monkeypatch.setattr(main.github, "installation_repos", repos)
     monkeypatch.setattr(main, "safe_sync", lambda: record("docs"))
-    monkeypatch.setattr(main, "safe_sync_apps", lambda: record("apps"))
+    monkeypatch.setattr(main, "safe_sync_repositories", lambda: record("repositories"))
     monkeypatch.setattr(main, "safe_sync_app", record)
 
 
@@ -355,7 +355,7 @@ def test_refresh_syncs_when_the_docs_repository_changed_without_a_webhook(config
     seen = []
     refresh_mocks(monkeypatch, {"full_name": REPO, "private": True, "default_branch": "main"}, [], seen)
     asyncio.run(main.refresh())
-    assert seen == ["docs", "apps"]
+    assert seen == ["docs", "repositories"]
 
 
 def test_refresh_removes_code_repositories_made_private_from_public_docs(configure, monkeypatch):

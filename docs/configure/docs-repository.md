@@ -12,7 +12,7 @@ The docs repository holds plain Markdown files, with no required config file. Th
 |---|---|
 | The folder tree is the menu | `guidelines/api.md` shows as "Api" under "Guidelines" |
 | Pages are files ending in `.md`, in lowercase | `api.md`, not `api.MD` |
-| Pages and folders are sorted by title | "Backend" comes before "Frontend" |
+| Pages and folders are sorted by title. To choose the order, give pages a front matter `order`. See below | "Backend" comes before "Frontend" |
 | A page's title is its front matter `title`, then its first `# ` heading, then its file name. Start the page with its heading: a `# ` line in a code block counts too | `# API guidelines` titles the page "API guidelines" |
 | A folder's `index.md` or `README.md` is the folder's page, and its title names the folder. With both, `index.md` wins. The names are case-sensitive: `readme.md` is an ordinary page | `design/README.md` with `# Design` |
 | A folder without an index page is named after the folder | `architecture/` shows as "Architecture" |
@@ -20,7 +20,7 @@ The docs repository holds plain Markdown files, with no required config file. Th
 | Files and folders starting with `.` are hidden, and never served | `.github/` |
 | Folders with no Markdown files are hidden | `assets/` with only images |
 | Folders and pages listed in an optional `.oharaignore` at the root are left out of the menu, search, MCP listings, and stale pages. Their files still load where pages embed them, and their pages still open from a direct link. See below | `resources/` |
-| `apps/` is reserved for docs synced from code repositories | `apps/api/` |
+| `repositories/` is reserved for docs synced from code repositories | `repositories/api/` |
 
 A suggested layout:
 
@@ -34,6 +34,20 @@ architecture/             # how the systems fit together
 design/                   # brand, style guide, UI kit
 onboarding/               # for new hires
 ```
+
+## Order the menu
+
+A page with a number as `order` in its front matter comes before the pages without one, lowest number first. A folder takes the `order` of its `index.md` or `README.md`. The rest follow, sorted by title, as do pages with the same `order`.
+
+```markdown
+---
+order: 1
+---
+
+# Guidelines
+```
+
+The order applies among the pages and folders of the same folder. Decimals work, so `1.5` fits a page between `1` and `2`.
 
 ## Hide folders and pages
 

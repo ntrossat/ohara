@@ -82,7 +82,7 @@ In Claude Code, the MCP server's prompts appear as commands:
 |---|---|
 | `list_pages` | Every page with its path and title, and the source of synced pages |
 | `search` | Pages that contain every word of a query, best matches first, with why each may be stale |
-| `read_page` | A page's Markdown, owner, verified date, covered code, why it may be stale, and the source of a synced page |
+| `read_page` | A page's Markdown, owner, verified date, covered code, why it may be stale, its order in the menu, and the source of a synced page |
 | `stale_pages` | Pages that may be out of date, with the reasons |
 | `check_repository` | Whether the GitHub App is installed on a code repository, where to add it if not, and which of its docs are synced |
 | `propose_change` | Opens pull requests with new or changed pages |
@@ -101,7 +101,7 @@ Ohara then:
 | Page | Where the change goes |
 |---|---|
 | A page of the docs repository | A pull request on the docs repository, one per code branch, or the open pull request a chat revises |
-| A synced page under `apps/` | Refused with its `source`: the assistant edits that file in its code repository |
-| A new page under `apps/` | Refused: new app docs go in the code repository |
+| A synced page under `repositories/` | Refused with its `source`: the assistant edits that file in its code repository |
+| A new page under `repositories/` | Refused: new app docs go in the code repository |
 
 The assistant treats content from other sources as untrusted, removes credentials and personal data before proposing, and lists what it removed in the description. The human review of the pull request is the final check.
