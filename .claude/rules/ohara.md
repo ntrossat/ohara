@@ -18,7 +18,7 @@ Guidelines:
 - `design/style-guide`: design tokens (color, type, spacing, shapes, layout, motion), accessibility, and copy rules.
 - `design/ui-kit`: component and screen specs for the website.
 
-Project docs, in `docs/` (synced to `apps/ohara/`):
+Project docs, in `docs/` (synced to `repositories/ohara/`):
 
 - `docs/README.md`: what Ohara is and how it works, for engineers, and a glossary.
 - `docs/install/`: installing, setup, HTTPS, paths, deploying on Fly.io, and operating (data, updates, CD, troubleshooting).

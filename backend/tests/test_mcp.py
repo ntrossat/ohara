@@ -519,7 +519,7 @@ CODE_URL = f"{API}/repos/acme/api"
 
 
 def add_synced_page(data_dir):
-    folder = data_dir / "docs" / "apps" / "api"
+    folder = data_dir / "docs" / "repositories" / "api"
     folder.mkdir(parents=True)
     (folder / "billing.md").write_text('---\nsource: "acme/api:docs/billing.md"\nowner: ada\n---\n\n# Billing')
     docs.index(data_dir / "docs")
@@ -531,10 +531,10 @@ def add_synced_page(data_dir):
 def test_synced_pages_report_their_source(mcp, configure, data_dir):
     configure(private=False)
     add_synced_page(data_dir)
-    assert result(call(mcp, "read_page", path="apps/api/billing"))["structuredContent"]["source"] == "acme/api:docs/billing.md"
+    assert result(call(mcp, "read_page", path="repositories/api/billing"))["structuredContent"]["source"] == "acme/api:docs/billing.md"
     assert result(call(mcp, "read_page", path="guide"))["structuredContent"]["source"] is None
     listed = result(call(mcp, "list_pages"))["structuredContent"]["result"]
-    assert next(page for page in listed if page["path"] == "apps/api/billing")["source"] == "acme/api:docs/billing.md"
+    assert next(page for page in listed if page["path"] == "repositories/api/billing")["source"] == "acme/api:docs/billing.md"
     found = result(call(mcp, "search", query="billing"))["structuredContent"]["result"]
     assert found[0]["source"] == "acme/api:docs/billing.md"
 
@@ -545,7 +545,7 @@ def test_proposal_for_a_synced_page_names_its_source(mcp, configure, data_dir):
     add_synced_page(data_dir)
     respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
     respx.get(f"{API}/user").mock(return_value=httpx.Response(200, json={"login": "ada"}))
-    page = {"path": "apps/api/billing", "markdown": "# Billing v2"}
+    page = {"path": "repositories/api/billing", "markdown": "# Billing v2"}
     answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page], project="acme/api", branch="b"))
     assert answer["isError"] and "docs/billing.md" in answer["content"][0]["text"]
 
@@ -554,7 +554,7 @@ def test_proposal_for_a_synced_page_names_its_source(mcp, configure, data_dir):
 def test_proposal_for_a_new_page_under_apps_is_refused(mcp, configure, data_dir):
     configure(private=False)
     respx.get(REPO_URL).mock(return_value=httpx.Response(200, json={}))
-    page = {"path": "apps/api/new", "markdown": "# New"}
+    page = {"path": "repositories/api/new", "markdown": "# New"}
     answer = result(call(mcp, "propose_change", token="ghp_1", title="t", description="d", pages=[page]))
     assert answer["isError"] and "synced from code repositories" in answer["content"][0]["text"]
 
@@ -565,7 +565,7 @@ def test_check_repository_reports_the_synced_docs(mcp, configure, data_dir):
     add_synced_page(data_dir)
     mock_installation([REPO, "acme/api"])
     answer = result(call(mcp, "check_repository", token="ghp_1", repository="acme/api"))["structuredContent"]
-    assert answer["connected"] and answer["docs"] == ["docs"] and answer["synced_folder"] == "apps/api"
+    assert answer["connected"] and answer["docs"] == ["docs"] and answer["synced_folder"] == "repositories/api"
 
 
 @respx.mock

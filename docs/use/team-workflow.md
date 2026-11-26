@@ -31,7 +31,7 @@ Ohara supports one loop: guidelines guide the code, and the code keeps the docs 
 
 - Run `/ohara:update` after a change that touched behavior the docs describe.
 - Add `covers` to project pages, so pushes flag them when their code changes.
-- Ask an assistant to go through `stale_pages` from time to time. A stale page that still matches the code only needs to be proposed unchanged: merging it verifies it. A synced page under `apps/` is verified by changing its `verified` date in the code repository.
+- Ask an assistant to go through `stale_pages` from time to time. A stale page that still matches the code only needs to be proposed unchanged: merging it verifies it. A synced page under `repositories/` is verified by changing its `verified` date in the code repository.
 
 ## Bring existing docs in
 

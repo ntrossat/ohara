@@ -20,7 +20,7 @@ The docs repository holds plain Markdown files, with no required config file. Th
 | Files and folders starting with `.` are hidden, and never served | `.github/` |
 | Folders with no Markdown files are hidden | `assets/` with only images |
 | Folders and pages listed in an optional `.oharaignore` at the root are left out of the menu, search, MCP listings, and stale pages. Their files still load where pages embed them, and their pages still open from a direct link. See below | `resources/` |
-| `apps/` is reserved for docs synced from code repositories | `apps/api/` |
+| `repositories/` is reserved for docs synced from code repositories | `repositories/api/` |
 
 A suggested layout:
 

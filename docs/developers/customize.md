@@ -66,7 +66,7 @@ Access is enforced before any tool runs: for a private docs repository, only cal
 | Stale after 180 days | `STALE_AFTER_DAYS` in `freshness.py` |
 | Stale flags kept per page | `MAX_CHANGES` in `freshness.py` |
 | Synced file types, size, and count | `TYPES`, `MAX_SIZE`, `MAX_FILES` in `appdocs.py` |
-| Synced folder | `APPS` in `docs.py` |
+| Synced folder | `REPOSITORIES` in `docs.py` |
 | Folder index file names | `INDEX_NAMES` in `docs.py` |
 | Ignore file name | `IGNORE_FILE` in `docs.py` |
 | How long stale flags from code changes last | `DRIFT_TTL` in `freshness.py` |

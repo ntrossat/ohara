@@ -1,7 +1,7 @@
 """Which docs of a code repository Ohara syncs into the docs repository, from its `.ohara.yml`:
 
     docs:                     # folders and files to sync, from the repository root
-      - docs                  # a folder's contents go to the root of apps/<repo>/
+      - docs                  # a folder's contents go to the root of repositories/<repo>/
       - README.md             # a file goes to the root by its name
 
 A repository opts in by adding the file: without it, nothing is synced. A file without a `docs` list syncs
@@ -51,7 +51,7 @@ def matches(paths: list[str], file: str) -> bool:
 
 
 def layout(paths: list[str], files: list[str]) -> dict[str, str]:
-    """Where each synced file goes under apps/<repo>/, from the repository's file list: target to source.
+    """Where each synced file goes under repositories/<repo>/, from the repository's file list: target to source.
 
     A folder's contents go to the root, a file goes to the root by its name. When two files land on the
     same target, the first entry wins.

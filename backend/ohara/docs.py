@@ -25,7 +25,7 @@ from ohara import db
 
 INDEX_NAMES = ("index.md", "README.md")
 IGNORE_FILE = ".oharaignore"
-APPS = "apps"  # synced code repository docs, owned by Ohara rather than the docs repository
+REPOSITORIES = "repositories"  # synced code repository docs, owned by Ohara rather than the docs repository
 lock = asyncio.Lock()  # one write to the snapshot at a time
 FRONT_MATTER = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
 HEADING = re.compile(r"^#\s+(.+?)\s*#*\s*$", re.M)
@@ -136,20 +136,20 @@ def read_page(root: Path, path: str) -> dict | None:
 
 
 def extract(tarball: bytes, root: Path) -> None:
-    """Replace the snapshot at `root` with the regular files of a GitHub tarball, keeping its apps/ folder."""
+    """Replace the snapshot at `root` with the regular files of a GitHub tarball, keeping its repositories/ folder."""
     staging = root.with_name(root.name + ".new")
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True)
     with tarfile.open(fileobj=io.BytesIO(tarball), mode="r:gz") as tar:
         for member in tar.getmembers():
             parts = Path(member.name).parts[1:]  # drop GitHub's "owner-repo-sha/" prefix
-            if not member.isfile() or not parts or ".." in parts or parts[0] == APPS:
+            if not member.isfile() or not parts or ".." in parts or parts[0] == REPOSITORIES:
                 continue
             target = staging.joinpath(*parts)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(tar.extractfile(member).read())
-    if (root / APPS).is_dir():
-        shutil.copytree(root / APPS, staging / APPS)
+    if (root / REPOSITORIES).is_dir():
+        shutil.copytree(root / REPOSITORIES, staging / REPOSITORIES)
     swap(staging, root)
 
 

@@ -126,15 +126,15 @@ def test_choosing_the_docs_repository_syncs_the_code_repositories(client, app_cr
     async def sync_docs():
         calls.append("docs")
 
-    async def sync_apps():
-        calls.append("apps")
+    async def sync_repositories():
+        calls.append("repositories")
 
     monkeypatch.setattr(main, "safe_sync", sync_docs)
-    monkeypatch.setattr(main, "safe_sync_apps", sync_apps)
+    monkeypatch.setattr(main, "safe_sync_repositories", sync_repositories)
     store.save({"app": app_credentials, "installation_id": 42})
     mock_installation([{"full_name": REPO, "name": "handbook", "private": True, "default_branch": "main"}])
     assert client.post("/api/setup/repository", json={"full_name": REPO}).json() == {"repo": REPO}
-    assert calls == ["docs", "apps"]
+    assert calls == ["docs", "repositories"]
 
 
 def test_choosing_needs_an_installation(client, app_credentials):
