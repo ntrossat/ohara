@@ -129,6 +129,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(startup())
     refreshing = asyncio.create_task(refresh_loop())
     async with mcp_server.run():
+        log.info("Ohara is running at %s", config.base_url())
         yield
     refreshing.cancel()
     await github.close()
