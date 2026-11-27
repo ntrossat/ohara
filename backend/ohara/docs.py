@@ -195,9 +195,10 @@ def nav(root: Path) -> list[dict]:
     return build_nav(root) if root.exists() else []
 
 
-def search(query: str, limit: int) -> list[dict]:
-    """Pages containing every word of the query, best matches first. Titles weigh more than text."""
+def search(query: str, limit: int, prefix: bool = False) -> list[dict]:
+    """Pages containing every word of the query, best matches first. Titles weigh more than text.
+    With `prefix`, the last word may be unfinished."""
     words = query.split()
     if not words:
         return []
-    return [{"path": path, "title": title, "snippet": snippet} for path, title, snippet in db.search_pages(words, limit)]
+    return [{"path": path, "title": title, "snippet": snippet} for path, title, snippet in db.search_pages(words, limit, prefix)]

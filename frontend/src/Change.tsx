@@ -72,7 +72,8 @@ export default function Change({ number, status, onApproved }: Props) {
               </span>
               <span>
                 {change.draft ? "Draft, proposed by " : "Proposed by "}
-                <strong>{change.author}</strong> · {day(change)}
+                <strong>{change.author}</strong>
+                {change.agent && ` with ${change.agent}`} · {day(change)}
               </span>
             </span>
             <span className="chip">{count(change.files)}</span>
@@ -124,6 +125,11 @@ export default function Change({ number, status, onApproved }: Props) {
                 </p>
               )}
               <div>
+                {change.code && (
+                  <a className="button secondary" href={change.code.html_url} target="_blank" rel="noreferrer">
+                    See the code in {change.code.repo.split("/")[1]} #{change.code.number}
+                  </a>
+                )}
                 <a className="button secondary" href={change.html_url} target="_blank" rel="noreferrer">
                   View on GitHub
                 </a>

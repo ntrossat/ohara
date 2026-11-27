@@ -718,6 +718,32 @@ button.nav-folder:hover .nav-toggle {
   background: var(--clay);
 }
 
+/* Search results: the pages that match by their text, under the menu's matches by title. */
+
+.nav-found {
+  margin: var(--space-4) 0 var(--space-1);
+  padding: 0 var(--space-3);
+  color: var(--muted);
+  font: 400 var(--size-label) var(--mono);
+}
+
+.nav-link.nav-result {
+  display: block;
+}
+
+.nav-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--size-label);
+  font-weight: 400;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .nav-empty {
   margin: var(--space-2) 0;
   padding: 0 var(--space-3);

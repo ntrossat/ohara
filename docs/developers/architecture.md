@@ -19,7 +19,7 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | `freshness.py` | Owners, verified dates, `covers`, stale flags, and front matter edits |
 | `appdocs.py` | The sync of code repositories' docs into `repositories/<repository>/` of the snapshot |
 | `appconfig.py` | Reading and validating `.ohara.yml` |
-| `changes.py` | The changes to review on the website: the docs repository's open pull requests, each page's text before and after, and the signature that names who proposed a change |
+| `changes.py` | The changes to review on the website: the docs repository's open pull requests, each page's text before and after, the signature that names who proposed a change and with which agent, and the code pull request a change comes with |
 | `mcp_server.py` | MCP tools and prompts, and the bearer-token guard on `/mcp`, which also asks anonymous callers of public docs to sign in for the tools that act as them |
 | `oauth.py` | The OAuth authorization server for MCP clients |
 | `sessions.py` | Sign-in sessions and the 5-minute access check |
@@ -37,7 +37,7 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | `Setup.tsx` | The setup page |
 | `Gate.tsx` | Sign-in and "no access" screens, and `Unreachable` when the server doesn't answer |
 | `Consent.tsx` | Approving an MCP client |
-| `Docs.tsx` | The docs reader: menu with a title filter (`/`, ⌘K, or Ctrl K) and the count of changes to review, breadcrumbs, page, previous and next links, edit link, and sign out |
+| `Docs.tsx` | The docs reader: menu with a search by title and text (`/`, ⌘K, or Ctrl K) and the count of changes to review, breadcrumbs, page, previous and next links, edit link, and sign out |
 | `Markdown.tsx` | Renders Markdown: links, images, code blocks with a copy button, Mermaid diagrams |
 | `Changes.tsx` | The list of changes to review, at `/-/changes` |
 | `Change.tsx` | One change, at `/-/changes/<number>`: each page with what the change removes and adds, and its approval |

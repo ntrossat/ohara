@@ -110,6 +110,11 @@ class Provider:
 provider = Provider()
 
 
+def client_name(client_id: str) -> str | None:
+    """The name a client registered with, if any."""
+    return (db.get("client", client_id) or {}).get("client_name")
+
+
 def describe(request: str) -> dict | None:
     """What the consent page shows: the client's name and where it sends the user back."""
     found = db.get("pending", request)

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
-import { get, HttpError, signOut, type ChangeSummary, type NavNode, type Page, type Status } from "./api";
+import { get, HttpError, signOut, type ChangeSummary, type NavNode, type Page, type SearchResult, type Status } from "./api";
 import Change from "./Change";
 import Changes, { CHANGES } from "./Changes";
 import { Unreachable } from "./Gate";
@@ -18,6 +18,7 @@ export default function Docs({ status }: Props) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [found, setFound] = useState<SearchResult[]>([]);
   const [unreachable, setUnreachable] = useState(false);
   // The changes to review live under a path no page can have: the list, or one change by its number.
   const review = new RegExp(`^${CHANGES.slice(1)}(?:/(\\d+))?$`).exec(path);
@@ -59,6 +60,23 @@ export default function Docs({ status }: Props) {
       },
     );
   }, [path]);
+
+  // The menu filters by title at once. The pages matching by their text follow, once typing pauses.
+  useEffect(() => {
+    setFound([]);
+    if (!query.trim()) return;
+    let current = true;
+    const timer = setTimeout(() => {
+      get<SearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`).then(
+        (results) => current && setFound(results.filter((result) => !matches(result.title, query))),
+        () => {},
+      );
+    }, SEARCH_DELAY);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+  }, [query]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -135,7 +153,22 @@ export default function Docs({ status }: Props) {
           </NavLink>
         )}
         <Tree nodes={shown} expanded={query ? null : expanded} onToggle={toggle} />
-        {query && !matches("Overview", query) && shown.length === 0 && (
+        {found.length > 0 && (
+          <>
+            <p className="nav-found">In the text</p>
+            <ul>
+              {found.map((result) => (
+                <li key={result.path}>
+                  <Link to={`/${result.path}`} className="nav-link nav-result" onClick={() => setQuery("")}>
+                    {result.title}
+                    <span className="nav-snippet">{result.snippet}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {query && !matches("Overview", query) && shown.length === 0 && found.length === 0 && (
           <p className="nav-empty">No pages match “{query}”</p>
         )}
         {status.user && (
@@ -213,6 +246,7 @@ export default function Docs({ status }: Props) {
   );
 }
 
+const SEARCH_DELAY = 150; // milliseconds without typing before the text is searched
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 function Search({ value, onChange }: { value: string; onChange: (value: string) => void }) {

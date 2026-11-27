@@ -33,9 +33,14 @@ def installation():
     )
 
 
-def mock_pull(files, texts):
-    """Mock pull request 7: `files` as the compare API lists them, `texts` as (path, ref) to file text."""
-    respx.get(f"{REPO_URL}/pulls/7").mock(return_value=httpx.Response(200, json=PULL))
+CODE_PULLS = "https://api.github.com/repos/acme/api/pulls"
+
+
+def mock_pull(files, texts, code=(), **fields):
+    """Mock pull request 7: `files` as the compare API lists them, `texts` as (path, ref) to file text,
+    and `code` as the pull requests of its code branch."""
+    respx.get(f"{REPO_URL}/pulls/7").mock(return_value=httpx.Response(200, json=PULL | fields))
+    respx.get(CODE_PULLS, params={"head": "acme:billing"}).mock(return_value=httpx.Response(200, json=list(code)))
     respx.get(f"{REPO_URL}/compare/base1...head1").mock(
         return_value=httpx.Response(200, json={"merge_base_commit": {"sha": "fork1"}, "files": files})
     )
@@ -53,6 +58,7 @@ def test_readers_list_open_changes_with_who_proposed_them(client, configure, ins
             "number": 7,
             "title": "Update billing",
             "author": "ada",
+            "agent": None,
             "branch": "api/billing",
             "draft": False,
             "updated_at": "2026-11-20T10:00:00Z",
@@ -89,6 +95,8 @@ def test_a_change_shows_each_page_before_and_after(client, configure, installati
     )
     change = client.get("/api/changes/7").json()
     assert change["author"] == "ada"
+    assert change["agent"] is None
+    assert change["code"] is None
     assert change["description"] == "The Charges API is gone."
     assert change["state"] == "open"
     assert change["sha"] == "head1"
@@ -99,6 +107,41 @@ def test_a_change_shows_each_page_before_and_after(client, configure, installati
         {"file": "old.md", "status": "removed", "before": "# Old", "after": None},
         {"file": "logo.svg", "status": "changed", "before": None, "after": None},
     ]
+
+
+def code_pull(private):
+    return {"number": 482, "html_url": "https://github.com/acme/api/pull/482", "base": {"repo": {"private": private}}}
+
+
+@respx.mock
+def test_a_change_names_its_agent_and_links_to_its_code(client, configure, installation):
+    configure(private=False)
+    body = "The Charges API is gone.\n\n---\nProposed through Ohara by @ada, with Claude Code."
+    mock_pull([], {}, code=[code_pull(private=False)], body=body)
+    change = client.get("/api/changes/7").json()
+    assert (change["author"], change["agent"], change["description"]) == ("ada", "Claude Code", "The Charges API is gone.")
+    assert change["code"] == {"repo": "acme/api", "number": 482, "html_url": "https://github.com/acme/api/pull/482"}
+
+
+@respx.mock
+def test_public_docs_never_name_a_private_code_repository(client, configure, installation):
+    configure(private=False)
+    mock_pull([], {}, code=[code_pull(private=True)])
+    assert client.get("/api/changes/7").json()["code"] is None
+
+
+@respx.mock
+def test_a_change_without_a_readable_code_repository_has_no_code(client, configure, installation):
+    configure(private=False)
+    mock_pull([], {})
+    respx.get(CODE_PULLS, params={"head": "acme:billing"}).mock(return_value=httpx.Response(404))
+    assert client.get("/api/changes/7").json()["code"] is None
+
+
+def test_the_signature_keeps_plain_characters_of_the_agent_name():
+    assert changes.sign("Why.", "ada", "Claude Code (api)") == "Why.\n\n---\nProposed through Ohara by @ada, with Claude Code (api)."
+    assert changes.sign("Why.", "ada", "[x](http://evil)\n@bob.") == "Why.\n\n---\nProposed through Ohara by @ada, with x(httpevil)bob."
+    assert changes.sign("Why.", "ada", "!!") == changes.sign("Why.", "ada")
 
 
 @respx.mock

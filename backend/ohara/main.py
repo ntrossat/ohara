@@ -28,6 +28,7 @@ SETUP_LOCKED = "Setup is locked: open the setup link that came with this instanc
 SETUP_TTL = 600  # seconds to come back from GitHub with the new app
 SETUP_COOKIE_TTL = 86400  # seconds the setup link keeps setup unlocked in this browser
 SIGN_IN_TTL = 600  # seconds to come back from the GitHub sign-in
+SEARCH_LIMIT = 8  # pages the website's search lists
 REFRESH_INTERVAL = sessions.CHECK_INTERVAL  # a visibility change reaches readers as fast as an access change
 AUTH_METADATA = "/.well-known/oauth-authorization-server"
 RESOURCE_METADATA = "/.well-known/oauth-protected-resource"
@@ -461,6 +462,12 @@ def page(path: str = "") -> dict:
     return {key: found[key] for key in ("title", "file", "markdown")} | {"source": source_of(found)}
 
 
+@app.get("/api/search", dependencies=[Depends(require_reader)])
+def search(q: str = "") -> list[dict]:
+    """The pages whose title or text match what a reader types: the last word may be unfinished."""
+    return docs.search(q, SEARCH_LIMIT, prefix=True)
+
+
 def source_of(page: dict) -> dict | None:
     """Where a synced page lives in its code repository, for the website's edit link."""
     repo, _, path = str(page["meta"].get("source") or "").partition(":")
@@ -496,7 +503,7 @@ async def change(
 ) -> dict:
     """`can_approve` tells the website whether to offer the approval. The approval itself checks again."""
     repo = settings["repo"]["full_name"]
-    found = await changes.read(token, repo, number)
+    found = await changes.read(token, repo, number, settings["repo"]["private"])
     if not found:
         raise HTTPException(404, "Change not found: it may belong to another repository")
     session = await viewer(request, response, settings)
