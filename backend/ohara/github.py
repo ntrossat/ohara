@@ -260,6 +260,20 @@ async def find_pull(token: str, full_name: str, branch: str) -> dict | None:
     return {"number": pull["number"], "html_url": pull["html_url"]} if pull else None
 
 
+async def latest_pull(token: str, full_name: str, branch: str) -> dict | None:
+    """The latest pull request of a branch, open or not, and whether its repository is private.
+    None without one, or when the token can't read the repository."""
+    params = {"head": f"{full_name.split('/')[0]}:{branch}", "state": "all", "sort": "created", "direction": "desc", "per_page": 1}
+    r = await client().get(f"{API}/repos/{full_name}/pulls", params=params, headers=auth(token))
+    if r.status_code in (403, 404):
+        return None
+    r.raise_for_status()
+    pull = next(iter(r.json()), None)
+    if not pull:
+        return None
+    return {"repo": full_name, "number": pull["number"], "html_url": pull["html_url"], "private": pull["base"]["repo"]["private"]}
+
+
 # Change review
 
 

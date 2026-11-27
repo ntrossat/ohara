@@ -29,7 +29,7 @@ Ohara supports one loop: guidelines guide the code, and the code keeps the docs 
 
 ## Review changes on the website
 
-**Changes**, in the website's menu, lists the open pull requests of the docs repository, with a count of those waiting. Open one to read each page as it will be: removed text is struck, added text is highlighted, the unchanged sections are folded, and the description says why. **Approve change** merges the pull request as you, so it needs write access to the docs repository, and GitHub's rules on the repository still apply: when a rule blocks the merge, Ohara says which. **View on GitHub** opens the pull request, to comment or to see other files.
+**Changes**, in the website's menu, lists the open pull requests of the docs repository, with a count of those waiting. Open one to read each page as it will be: removed text is struck, added text is highlighted, the unchanged sections are folded, and the description says why. A change proposed through a coding assistant names it, as in "Proposed by ada with Claude Code". **See the code** opens the code pull request of the same branch, when the change comes from a code branch (never a private code repository's on public docs). **Approve change** merges the pull request as you, so it needs write access to the docs repository, and GitHub's rules on the repository still apply: when a rule blocks the merge, Ohara says which. **View on GitHub** opens the pull request, to comment or to see other files.
 
 ## Keep the docs fresh
 

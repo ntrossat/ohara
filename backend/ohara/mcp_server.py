@@ -220,7 +220,7 @@ async def propose_change(
             raise ToolError("Proposing changes requires write access to the docs repository")
     except github.Unauthorized:
         raise ToolError("Sign in again: the GitHub token is no longer valid")
-    body = changes.sign(description, login)
+    body = changes.sign(description, login, caller.agent)
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
         docs_branch = (
@@ -496,6 +496,7 @@ class Caller:
     allowed: bool  # can read the docs repository
     github_token: str
     login: str | None = None
+    agent: str | None = None  # the name the MCP client registered with
 
 
 async def authenticate(token: str, settings: dict) -> Caller | None:
@@ -506,7 +507,7 @@ async def authenticate(token: str, settings: dict) -> Caller | None:
         if not access or access.resource and access.resource.rstrip("/") != oauth.resource_url():
             return None
         session = await sessions.current(access.session, settings["app"], repo)
-        return Caller(session.allowed, session.token, session.login) if session else None
+        return Caller(session.allowed, session.token, session.login, oauth.client_name(access.client_id)) if session else None
     key = hashlib.sha256(f"{repo}:{token}".encode()).hexdigest()
     checked = db.get("check", key)
     if checked is None:

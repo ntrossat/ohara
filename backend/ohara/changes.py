@@ -2,7 +2,7 @@
 
 Readers see them through the installation token, as they see the docs. Approving a change merges its pull
 request with the approver's own token, so GitHub applies their rights and the repository's rules.
-This module owns the proposal signature, which names who proposed a change through Ohara.
+This module owns the proposal signature, which names who proposed a change through Ohara, and with which agent.
 """
 
 import asyncio
@@ -13,14 +13,17 @@ from ohara import docs, github
 
 LIST_TTL = 60  # seconds the list of open pull requests is kept
 MAX_PAGES = 30  # pages of one change shown with their text; the rest are only named
-SIGNATURE = re.compile(r"\s*---\s*Proposed through Ohara by @([\w-]+)\.\s*\Z")
+AGENT_LENGTH = 40  # characters kept of an agent's name
+SIGNATURE = re.compile(r"\s*---\s*Proposed through Ohara by @([\w-]+)(?:, with ([^\n]+?))?\.\s*\Z")
 
 _listed: tuple[float, str, list[dict]] | None = None  # when, for which repository, and the list
 
 
-def sign(description: str, login: str) -> str:
-    """A pull request body that names the user a proposal comes from, as the app opens it."""
-    return f"{description}\n\n---\nProposed through Ohara by @{login}."
+def sign(description: str, login: str, agent: str | None = None) -> str:
+    """A pull request body that names the user a proposal comes from, as the app opens it, and the agent that
+    wrote it. The agent names itself, so only plain characters of its name are kept."""
+    agent = re.sub(r"[^\w .()-]+", "", agent or "")[:AGENT_LENGTH].strip(" .")
+    return f"{description}\n\n---\nProposed through Ohara by @{login}{f', with {agent}' if agent else ''}."
 
 
 def summary(pull: dict) -> dict:
@@ -28,8 +31,20 @@ def summary(pull: dict) -> dict:
     body = pull.pop("body")
     signed = SIGNATURE.search(body)
     if signed:
-        return pull | {"author": signed.group(1), "description": body[: signed.start()].strip()}
-    return pull | {"description": body.strip()}
+        return pull | {"author": signed.group(1), "agent": signed.group(2), "description": body[: signed.start()].strip()}
+    return pull | {"agent": None, "description": body.strip()}
+
+
+async def code_pull(token: str, full_name: str, branch: str, private: bool) -> dict | None:
+    """The code pull request a change comes with: the latest one of the code branch its docs branch names
+    ("project/branch"), in the docs repository's account. A private code repository is never named on public docs."""
+    project, _, code_branch = branch.partition("/")
+    if not code_branch:
+        return None
+    found = await github.latest_pull(token, f"{full_name.split('/')[0]}/{project}", code_branch)
+    if not found or found.pop("private") and not private:
+        return None
+    return found
 
 
 async def listed(token: str, full_name: str) -> list[dict]:
@@ -51,9 +66,9 @@ def status_of(status: str) -> str:
     return {"added": "added", "copied": "added", "removed": "removed"}.get(status, "changed")
 
 
-async def read(token: str, full_name: str, number: int) -> dict | None:
+async def read(token: str, full_name: str, number: int, private: bool) -> dict | None:
     """A pull request with the pages it changes: each page's text before and after, without front matter.
-    Other files, and pages past `MAX_PAGES`, come without text."""
+    Other files, and pages past `MAX_PAGES`, come without text. `code` is the code pull request it comes with."""
     pull = await github.get_pull(token, full_name, number)
     if not pull:
         return None
@@ -78,4 +93,5 @@ async def read(token: str, full_name: str, number: int) -> dict | None:
         pages.get(file["file"]) or {"file": file["file"], "status": status_of(file["status"]), "before": None, "after": None}
         for file in changed
     ]
-    return summary(pull) | {"sha": head, "files": files}
+    found = summary(pull)
+    return found | {"sha": head, "files": files, "code": await code_pull(token, full_name, found["branch"], private)}

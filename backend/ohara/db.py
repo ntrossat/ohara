@@ -130,9 +130,13 @@ def replace_pages(rows: list[tuple[str, str, str]]) -> None:
         conn.executemany("INSERT INTO pages (path, title, body) VALUES (?, ?, ?)", rows)
 
 
-def search_pages(words: list[str], limit: int) -> list[tuple[str, str, str]]:
-    """(path, title, snippet) of the pages containing every word, best matches first. Titles weigh more than text."""
-    match = " ".join('"' + word.replace('"', '""') + '"' for word in words)
+def search_pages(words: list[str], limit: int, prefix: bool = False) -> list[tuple[str, str, str]]:
+    """(path, title, snippet) of the pages containing every word, best matches first. Titles weigh more than text.
+    With `prefix`, the last word also matches the words it starts, for a query still being typed."""
+    terms = ['"' + word.replace('"', '""') + '"' for word in words]
+    if prefix:
+        terms[-1] = f"({terms[-1]} OR {terms[-1]}*)"
+    match = " AND ".join(terms)
     with connect() as conn:
         return conn.execute(
             "SELECT path, title, snippet(pages, 2, '', '', '…', 32) FROM pages"

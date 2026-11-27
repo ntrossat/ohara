@@ -122,3 +122,20 @@ def test_extract_skips_links_and_escaping_paths(tmp_path):
     assert (root / "ok.md").exists()
     assert not (root / "link.md").exists()
     assert not (tmp_path / "evil.md").exists()
+
+
+def test_readers_search_the_text_as_they_type(client, configure, data_dir):
+    configure(private=False)
+    (data_dir / "docs" / "billing.md").write_text("# Billing\n\nWe retry failed charges once.")
+    docs.index(data_dir / "docs")
+    assert client.get("/api/search", params={"q": "retry charges"}).json() == [
+        {"path": "billing", "title": "Billing", "snippet": "We retry failed charges once."}
+    ]
+    assert [found["path"] for found in client.get("/api/search", params={"q": "failed char"}).json()] == ["billing"]
+    assert client.get("/api/search", params={"q": "refund"}).json() == []
+    assert client.get("/api/search").json() == []
+
+
+def test_private_search_requires_sign_in(client, configure):
+    configure(private=True)
+    assert client.get("/api/search", params={"q": "guide"}).status_code == 401

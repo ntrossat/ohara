@@ -16,9 +16,10 @@ Before setup finishes, the docs routes and `/mcp` answer `503` with "Ohara is no
 | `GET /api/status` | Everyone | Setup state, docs repository, branch, visibility, the signed-in user, and whether they can read |
 | `GET /api/nav` | Readers | The menu, built from the folder tree |
 | `GET /api/page?path=` | Readers | A page's title, file, Markdown, and for a synced page its `source` (repository, path, edit URL) |
+| `GET /api/search?q=` | Readers | Up to 8 pages containing every word of `q`, best matches first: `path`, `title`, and `snippet`. The last word may be unfinished |
 | `GET /api/files/*` | Readers | Images and other files from the docs repository, with a strict Content-Security-Policy |
-| `GET /api/changes` | Readers | The docs repository's open pull requests, latest change first: number, title, who proposed it, branch, draft, date, and GitHub URL. Kept for a minute |
-| `GET /api/changes/{number}` | Readers | One pull request: its description, state, last commit (`sha`), each changed file with a page's text `before` and `after`, and `can_approve` for the signed-in user |
+| `GET /api/changes` | Readers | The docs repository's open pull requests, latest change first: number, title, who proposed it, the `agent` that wrote it, branch, draft, date, and GitHub URL. Kept for a minute |
+| `GET /api/changes/{number}` | Readers | One pull request: its description, state, last commit (`sha`), each changed file with a page's text `before` and `after`, the `code` pull request it comes with, and `can_approve` for the signed-in user |
 | `POST /api/changes/{number}/approve` | Signed-in users who can write to the docs repository | Merges the pull request as the user, while its last commit is still the `sha` sent. `409` with the reason when GitHub refuses |
 | `GET /api/setup/start?token=&org=` | Everyone | The setup link, when `OHARA_SETUP_TOKEN` is set: unlocks setup in this browser for a day. With `org`, even empty, the setup page then goes straight to GitHub to create the app |
 | `GET /api/setup/manifest?org=` | Before setup | The GitHub App manifest and the form action. `org` creates the app under an organization |
@@ -70,7 +71,9 @@ Streamable HTTP, stateless, at `/mcp`. Callers send `Authorization: Bearer` with
 2. `pull_request` set: the branch of that pull request, if it is open and not from a fork. Otherwise, a new branch.
 3. Neither: a new `ohara/<slug>-<random>` branch.
 
-Search uses SQLite FTS5 with English stemming, and weighs titles ten times more than the text. Pages hidden by `.oharaignore` are left out of `list_pages`, `search`, and `stale_pages`, but `read_page` still returns them.
+Search uses SQLite FTS5 with English stemming, and weighs titles ten times more than the text. The website's `GET /api/search` uses the same index.
+
+A proposal's pull request ends with a signature, "Proposed through Ohara by @login, with Agent.": the agent is the name the MCP client registered with when it signed in through OAuth, and is left out for a caller with a GitHub token. The website finds a change's `code` pull request from its docs branch: for `<project>/<branch>`, the latest pull request of `<branch>` in the `<project>` repository of the docs repository's account. Pages hidden by `.oharaignore` are left out of `list_pages`, `search`, and `stale_pages`, but `read_page` still returns them.
 
 ### Prompts
 

@@ -12,7 +12,7 @@ export function day(change: ChangeSummary): string {
 
 /** "proposed by ada · 20 Nov 2026", as the list says it. */
 function proposed(change: ChangeSummary): string {
-  return `${change.draft ? "draft, " : ""}proposed by ${change.author} · ${day(change)}`;
+  return `${change.draft ? "draft, " : ""}proposed by ${change.author}${change.agent ? ` with ${change.agent}` : ""} · ${day(change)}`;
 }
 
 /** The changes waiting for review: the open pull requests of the docs repository. */

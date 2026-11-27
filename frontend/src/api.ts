@@ -12,12 +12,16 @@ export type Status =
 export type NavNode = { title: string; path: string | null; folder?: string; children: NavNode[] };
 export type Source = { repo: string; path: string; edit_url: string };
 export type Page = { title: string; file: string; markdown: string; source: Source | null };
+/** A page whose title or text matches a search, with the words around the match. */
+export type SearchResult = { path: string; title: string; snippet: string };
 
 /** A change to review: an open pull request of the docs repository. */
 export type ChangeSummary = {
   number: number;
   title: string;
   author: string;
+  /** The agent that wrote the change, as it names itself. */
+  agent: string | null;
   branch: string;
   draft: boolean;
   updated_at: string;
@@ -30,6 +34,8 @@ export type ChangeDetail = ChangeSummary & {
   state: "open" | "merged" | "closed";
   sha: string;
   files: ChangedFile[];
+  /** The code pull request the change comes with. */
+  code: { repo: string; number: number; html_url: string } | null;
   can_approve: boolean;
 };
 
