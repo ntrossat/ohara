@@ -1,13 +1,11 @@
-import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import ReactMarkdown, { type Options } from "react-markdown";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation } from "react-router";
-import rehypeHighlight from "rehype-highlight";
-import rehypeSlug from "rehype-slug";
-import remarkGfm from "remark-gfm";
-import { get, HttpError, signOut, type NavNode, type Page, type Status } from "./api";
-import { resolveLink } from "./links";
+import { get, HttpError, signOut, type ChangeSummary, type NavNode, type Page, type Status } from "./api";
+import Change from "./Change";
+import Changes, { CHANGES } from "./Changes";
 import { Unreachable } from "./Gate";
 import Mark from "./Mark";
+import Markdown from "./Markdown";
 import { readingOrder, trail } from "./nav";
 
 type Props = { status: Extract<Status, { configured: true }> };
@@ -21,6 +19,9 @@ export default function Docs({ status }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [unreachable, setUnreachable] = useState(false);
+  // The changes to review live under a path no page can have: the list, or one change by its number.
+  const review = new RegExp(`^${CHANGES.slice(1)}(?:/(\\d+))?$`).exec(path);
+  const [waiting, setWaiting] = useState(0);
   // Folders start folded; the ones leading to the current page unfold.
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -38,11 +39,18 @@ export default function Docs({ status }: Props) {
 
   useEffect(() => {
     get<NavNode[]>("/api/nav").then(setNav, () => setUnreachable(true));
+    countChanges();
   }, []);
+
+  /** The menu counts the changes waiting for review. Without an answer, it shows no count. */
+  function countChanges() {
+    get<ChangeSummary[]>("/api/changes").then((changes) => setWaiting(changes.length), () => setWaiting(0));
+  }
 
   useEffect(() => {
     setMenuOpen(false);
     setQuery("");
+    if (review) return;
     get<Page>(`/api/page?path=${encodeURIComponent(path)}`).then(
       (page) => setLoaded({ path, page }),
       (error) => {
@@ -116,6 +124,16 @@ export default function Docs({ status }: Props) {
             Overview
           </NavLink>
         )}
+        {!query && (
+          <NavLink to={CHANGES} className="nav-link changes">
+            Changes
+            {waiting > 0 && (
+              <span className="count" aria-label={`${waiting} to review`}>
+                {waiting}
+              </span>
+            )}
+          </NavLink>
+        )}
         <Tree nodes={shown} expanded={query ? null : expanded} onToggle={toggle} />
         {query && !matches("Overview", query) && shown.length === 0 && (
           <p className="nav-empty">No pages match “{query}”</p>
@@ -131,7 +149,11 @@ export default function Docs({ status }: Props) {
       </nav>
 
       <main className="content">
-        {loaded && (
+        {review?.[1] ? (
+          <Change key={review[1]} number={Number(review[1])} status={status} onApproved={countChanges} />
+        ) : review ? (
+          <Changes repo={status.repo} />
+        ) : loaded && (
           <article key={loaded.path} className="prose">
             {loaded.path && (
               <p className="breadcrumb">
@@ -144,7 +166,7 @@ export default function Docs({ status }: Props) {
               </p>
             )}
             {loaded.page ? (
-              <Markdown page={loaded.page} />
+              <Markdown file={loaded.page.file} markdown={loaded.page.markdown} />
             ) : loaded.path ? (
               <Empty title="This page doesn't exist">
                 It may have been moved or renamed in {status.repo}. <Link to="/">Go to the overview</Link>.
@@ -323,135 +345,3 @@ function Empty({ title, children }: { title: string; children: ReactNode }) {
     </>
   );
 }
-
-function CodeBlock({ children, language, source }: { children: ReactNode; language: string; source?: string }) {
-  const pre = useRef<HTMLPreElement>(null);
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(source ?? pre.current?.innerText ?? "");
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <div className="code-block">
-      <div className="code-bar">
-        <span className="code-language">{language || "text"}</span>
-        <button className="text-button" onClick={copy}>
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <rect x="5" y="5" width="9" height="9" rx="1.5" />
-            <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
-          </svg>
-          {copied ? "copied" : "copy"}
-        </button>
-      </div>
-      {source === undefined ? <pre ref={pre}>{children}</pre> : children}
-    </div>
-  );
-}
-
-/** Mermaid colors and type, from the design tokens. Mermaid needs literal values, not CSS variables. */
-function mermaidTheme() {
-  const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return {
-    background: token("--tint"),
-    fontFamily: token("--sans"),
-    fontSize: "14px",
-    primaryColor: token("--bg-2"),
-    primaryTextColor: token("--ink"),
-    primaryBorderColor: token("--clay"),
-    secondaryColor: token("--soft"),
-    tertiaryColor: token("--soft"),
-    lineColor: token("--muted"),
-    textColor: token("--text"),
-    clusterBkg: token("--soft"),
-    clusterBorder: token("--line"),
-    edgeLabelBackground: token("--tint"),
-  };
-}
-
-let diagrams = 0;
-
-/** A ```mermaid block drawn as a diagram. Mermaid loads only on pages that have one. Invalid source stays a code block. */
-function Diagram({ source }: { source: string }) {
-  const [svg, setSvg] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let current = true;
-    import("mermaid")
-      .then(async ({ default: mermaid }) => {
-        mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: mermaidTheme() });
-        const { svg } = await mermaid.render(`diagram-${++diagrams}`, source);
-        if (current) setSvg(svg);
-      })
-      .catch(() => current && setFailed(true));
-    return () => {
-      current = false;
-    };
-  }, [source]);
-
-  if (failed) return <CodeBlock language="mermaid"><code>{source}</code></CodeBlock>;
-  return (
-    <CodeBlock language="mermaid" source={source}>
-      <div className="diagram" role="img" dangerouslySetInnerHTML={svg ? { __html: svg } : undefined} />
-    </CodeBlock>
-  );
-}
-
-function languageOf(children: ReactNode): string {
-  const child = Array.isArray(children) ? children[0] : children;
-  const className: string = (child as { props?: { className?: string } })?.props?.className ?? "";
-  return /language-([\w-]+)/.exec(className)?.[1] ?? "";
-}
-
-/** The plain text of a hast node, such as the source of a code block. */
-function textOf(node: unknown): string {
-  const { value, children } = (node ?? {}) as { value?: string; children?: unknown[] };
-  return value ?? (children ?? []).map(textOf).join("");
-}
-
-const VIDEO = /\.(mp4|webm|mov)$/i;
-const remarkPlugins = [remarkGfm];
-const rehypePlugins: Options["rehypePlugins"] = [rehypeSlug, [rehypeHighlight, { detect: false }]];
-
-/** Memoized: parsing and highlighting rerun only when the page changes. */
-const Markdown = memo(function Markdown({ page }: { page: Page }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={remarkPlugins}
-      rehypePlugins={rehypePlugins}
-      components={{
-        a({ href = "", children, node: _node, ...rest }) {
-          const link = resolveLink(page.file, href);
-          if (link.kind === "page") return <Link to={link.href} {...rest}>{children}</Link>;
-          if (link.kind === "external") return <a href={link.href} target="_blank" rel="noreferrer" {...rest}>{children}</a>;
-          return <a href={link.href} {...rest}>{children}</a>;
-        },
-        img({ src = "", alt = "", node: _node, ...rest }) {
-          const link = typeof src === "string" ? resolveLink(page.file, src) : null;
-          // ![alt](clip.mp4) plays the video once, silently, without controls.
-          if (link && VIDEO.test(link.href)) {
-            return <video src={link.href} aria-label={alt} autoPlay muted playsInline />;
-          }
-          return <img src={link?.href} alt={alt} loading="lazy" {...rest} />;
-        },
-        pre({ children, node }) {
-          const language = languageOf(children);
-          if (language === "mermaid") return <Diagram source={textOf(node)} />;
-          return <CodeBlock language={language}>{children}</CodeBlock>;
-        },
-        table({ node: _node, ...rest }) {
-          return (
-            <div className="table-wrap">
-              <table {...rest} />
-            </div>
-          );
-        },
-      }}
-    >
-      {page.markdown}
-    </ReactMarkdown>
-  );
-});

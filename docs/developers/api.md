@@ -1,5 +1,5 @@
 ---
-covers: [ntrossat/ohara:backend/ohara/main.py, ntrossat/ohara:backend/ohara/mcp_server.py]
+covers: [ntrossat/ohara:backend/ohara/main.py, ntrossat/ohara:backend/ohara/mcp_server.py, ntrossat/ohara:backend/ohara/changes.py]
 verified: 2026-10-09
 ---
 
@@ -17,6 +17,9 @@ Before setup finishes, the docs routes and `/mcp` answer `503` with "Ohara is no
 | `GET /api/nav` | Readers | The menu, built from the folder tree |
 | `GET /api/page?path=` | Readers | A page's title, file, Markdown, and for a synced page its `source` (repository, path, edit URL) |
 | `GET /api/files/*` | Readers | Images and other files from the docs repository, with a strict Content-Security-Policy |
+| `GET /api/changes` | Readers | The docs repository's open pull requests, latest change first: number, title, who proposed it, branch, draft, date, and GitHub URL. Kept for a minute |
+| `GET /api/changes/{number}` | Readers | One pull request: its description, state, last commit (`sha`), each changed file with a page's text `before` and `after`, and `can_approve` for the signed-in user |
+| `POST /api/changes/{number}/approve` | Signed-in users who can write to the docs repository | Merges the pull request as the user, while its last commit is still the `sha` sent. `409` with the reason when GitHub refuses |
 | `GET /api/setup/start?token=&org=` | Everyone | The setup link, when `OHARA_SETUP_TOKEN` is set: unlocks setup in this browser for a day. With `org`, even empty, the setup page then goes straight to GitHub to create the app |
 | `GET /api/setup/manifest?org=` | Before setup | The GitHub App manifest and the form action. `org` creates the app under an organization |
 | `GET /api/setup/callback` | Before setup | GitHub's return after creating the app |

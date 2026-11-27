@@ -33,7 +33,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import BaseRoute
 from starlette.types import Receive, Scope, Send
 
-from ohara import appdocs, config, db, docs, freshness, github, oauth, sessions, store
+from ohara import appdocs, changes, config, db, docs, freshness, github, oauth, sessions, store
 
 SEARCH_LIMIT = 20
 
@@ -220,7 +220,7 @@ async def propose_change(
             raise ToolError("Proposing changes requires write access to the docs repository")
     except github.Unauthorized:
         raise ToolError("Sign in again: the GitHub token is no longer valid")
-    body = f"{description}\n\n---\nProposed through Ohara by @{login}."
+    body = changes.sign(description, login)
     try:
         token = await github.installation_token(settings["app"], settings["installation_id"])
         docs_branch = (

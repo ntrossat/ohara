@@ -29,6 +29,7 @@ Ohara is an open-source documentation manager. Your docs and engineering guideli
 - **Live guidelines.** Agents read the guidelines from Ohara when they work, not from copies in each repository. A merged change reaches every project on its next task.
 - **Docs as code.** Plain Markdown in a GitHub repository. Folders become the menu. Every change is a pull request.
 - **One docs pull request per code branch**, linked from the code pull request, so reviewers see both.
+- **Review on the website.** Every proposed change reads like the page, with what it removes and adds, and one button approves it.
 - **Freshness.** Pages name their owner, their last verified date, and the code they cover. Ohara flags them when that code changes or after six months.
 - **Docs next to the code.** A code repository with a `.ohara.yml` keeps its own docs, and Ohara syncs them on each push.
 - **Access mirrors GitHub.** A public repository makes a public website. A private one requires GitHub sign-in, and only people who can read the repository can read the docs.
