@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from ohara import appdocs, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
+from ohara import appdocs, changes, config, db, docs, freshness, github, mcp_server, oauth, sessions, store
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(message)s")
 log = logging.getLogger("ohara")
@@ -476,6 +476,73 @@ def file(path: str) -> FileResponse:
     if not found:
         raise HTTPException(404, "File not found")
     return FileResponse(found, headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
+
+
+# Changes: the docs repository's open pull requests, reviewed and approved on the website
+
+
+async def docs_token(settings: dict = Depends(require_configured)) -> str:
+    return await github.installation_token(settings["app"], settings["installation_id"])
+
+
+@app.get("/api/changes", dependencies=[Depends(require_reader)])
+async def change_list(settings: dict = Depends(require_configured), token: str = Depends(docs_token)) -> list[dict]:
+    return await changes.listed(token, settings["repo"]["full_name"])
+
+
+@app.get("/api/changes/{number}", dependencies=[Depends(require_reader)])
+async def change(
+    number: int, request: Request, response: Response, settings: dict = Depends(require_configured), token: str = Depends(docs_token)
+) -> dict:
+    """`can_approve` tells the website whether to offer the approval. The approval itself checks again."""
+    repo = settings["repo"]["full_name"]
+    found = await changes.read(token, repo, number)
+    if not found:
+        raise HTTPException(404, "Change not found: it may belong to another repository")
+    session = await viewer(request, response, settings)
+    try:
+        can_approve = bool(session) and await github.user_can_write(session.token, repo)
+    except github.Unauthorized:
+        can_approve = False
+    return found | {"can_approve": can_approve}
+
+
+async def require_user(request: Request, response: Response, settings: dict = Depends(require_configured)) -> sessions.Session:
+    session = await viewer(request, response, settings)
+    if not session:
+        raise HTTPException(401, "Sign in with GitHub to approve changes")
+    if not can_read(settings, session):
+        raise HTTPException(403, sessions.NO_ACCESS)
+    return session
+
+
+class Approval(BaseModel):
+    sha: str  # the last commit the approver saw
+
+
+@app.post("/api/changes/{number}/approve")
+async def approve_change(
+    number: int,
+    approval: Approval,
+    background: BackgroundTasks,
+    session: sessions.Session = Depends(require_user),
+    settings: dict = Depends(require_configured),
+) -> dict[str, bool]:
+    """Merge the pull request as the signed-in user. The session cookie is SameSite, and the body is JSON, so only
+    a page on Ohara's own site can approve."""
+    repo = settings["repo"]["full_name"]
+    try:
+        methods = await github.merge_methods(session.token, repo)
+        if not methods:
+            raise HTTPException(403, "Approving a change needs write access to the docs repository: ask an admin for it on GitHub")
+        await github.merge_pull(session.token, repo, number, approval.sha, methods[0])
+    except github.Unauthorized:
+        raise HTTPException(401, "Your GitHub sign-in expired: sign in again")
+    except github.Refused as refused:
+        raise HTTPException(409, str(refused))
+    changes.forget()
+    background.add_task(safe_sync)  # the webhook does it too, when GitHub can reach Ohara
+    return {"merged": True}
 
 
 # GitHub webhooks

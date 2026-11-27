@@ -1,4 +1,5 @@
-"""GitHub App calls: manifest registration, installation access, change proposals, user sign-in, and webhooks."""
+"""GitHub App calls: manifest registration, installation access, change proposals and their review, user sign-in,
+and webhooks."""
 
 import base64
 import hashlib
@@ -18,12 +19,18 @@ TIMEOUT = 30  # seconds per request
 JWT_TTL = 540  # seconds, under GitHub's 10-minute limit
 CLOCK_SKEW = 60  # seconds the app JWT is backdated, in case GitHub's clock is behind
 PAGE_SIZE = 100  # GitHub's largest page
+# Merge methods, in the order Ohara prefers them, with the repository setting that allows each
+MERGE_METHODS = {"merge": "allow_merge_commit", "squash": "allow_squash_merge", "rebase": "allow_rebase_merge"}
 
 _client: httpx.AsyncClient | None = None
 
 
 class Unauthorized(Exception):
     """The user token is no longer valid."""
+
+
+class Refused(Exception):
+    """GitHub refused to merge a pull request. The message says why, and what to do."""
 
 
 def client() -> httpx.AsyncClient:
@@ -251,6 +258,80 @@ async def find_pull(token: str, full_name: str, branch: str) -> dict | None:
     r.raise_for_status()
     pull = next(iter(r.json()), None)
     return {"number": pull["number"], "html_url": pull["html_url"]} if pull else None
+
+
+# Change review
+
+
+def pull_fields(pull: dict) -> dict:
+    return {
+        "number": pull["number"],
+        "title": pull["title"],
+        "body": pull.get("body") or "",
+        "author": pull["user"]["login"],
+        "branch": pull["head"]["ref"],
+        "draft": bool(pull.get("draft")),
+        "updated_at": pull["updated_at"],
+        "html_url": pull["html_url"],
+    }
+
+
+async def open_pulls(token: str, full_name: str) -> list[dict]:
+    """The repository's open pull requests, the latest change first, up to GitHub's largest page."""
+    params = {"state": "open", "sort": "updated", "direction": "desc", "per_page": PAGE_SIZE}
+    r = await client().get(f"{API}/repos/{full_name}/pulls", params=params, headers=auth(token))
+    r.raise_for_status()
+    return [pull_fields(pull) for pull in r.json()]
+
+
+async def get_pull(token: str, full_name: str, number: int) -> dict | None:
+    """A pull request with its state (open, merged, or closed) and the commits it compares, or None without one."""
+    r = await client().get(f"{API}/repos/{full_name}/pulls/{number}", headers=auth(token))
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    pull = r.json()
+    state = "merged" if pull.get("merged") else pull["state"]
+    return pull_fields(pull) | {"state": state, "head": pull["head"]["sha"], "base": pull["base"]["sha"]}
+
+
+async def pull_changes(token: str, full_name: str, base: str, head: str) -> tuple[str, list[dict]]:
+    """The commit a pull request started from, and the files it changed since, each with its name before."""
+    r = await client().get(f"{API}/repos/{full_name}/compare/{base}...{head}", params={"per_page": 1}, headers=auth(token))
+    r.raise_for_status()
+    data = r.json()
+    files = [
+        {"file": changed["filename"], "status": changed["status"], "previous": changed.get("previous_filename") or changed["filename"]}
+        for changed in data.get("files", [])
+    ]
+    return data["merge_base_commit"]["sha"], files
+
+
+async def merge_methods(token: str, full_name: str) -> list[str] | None:
+    """The merge methods the repository allows, or None when the user can't write to it."""
+    r = await client().get(f"{API}/repos/{full_name}", headers=auth(token))
+    if r.status_code == 401:
+        raise Unauthorized()
+    if not r.is_success or not r.json().get("permissions", {}).get("push"):
+        return None
+    repo = r.json()
+    return [method for method, allowed in MERGE_METHODS.items() if repo.get(allowed, True)]
+
+
+async def merge_pull(token: str, full_name: str, number: int, sha: str, method: str) -> None:
+    """Merge a pull request as the user, only while its last commit is still `sha`, so nobody merges
+    commits they haven't seen. GitHub applies the user's rights and the branch's rules."""
+    r = await client().put(
+        f"{API}/repos/{full_name}/pulls/{number}/merge", json={"sha": sha, "merge_method": method}, headers=auth(token)
+    )
+    if r.status_code == 401:
+        raise Unauthorized()
+    if r.status_code == 409:
+        raise Refused("This change was updated since you opened it: reload to review its latest version")
+    if r.status_code in (403, 404, 405, 422):
+        reason = str(r.json().get("message") or "it can't be merged").rstrip(".")
+        raise Refused(f"GitHub refused to merge this change ({reason}): open it on GitHub to see what it needs")
+    r.raise_for_status()
 
 
 # User sign-in

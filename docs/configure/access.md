@@ -1,5 +1,5 @@
 ---
-covers: [ntrossat/ohara:backend/ohara/sessions.py, ntrossat/ohara:backend/ohara/oauth.py]
+covers: [ntrossat/ohara:backend/ohara/sessions.py, ntrossat/ohara:backend/ohara/oauth.py, ntrossat/ohara:backend/ohara/changes.py]
 ---
 
 # Access
@@ -21,7 +21,9 @@ Changing the repository's visibility on GitHub changes who can read Ohara as soo
 |---|---|
 | Read the website and the MCP server | Read access to a private docs repository, nothing for a public one |
 | Propose changes through MCP | Write access to the docs repository. For a public docs repository too, the assistant signs in when it first proposes |
-| Merge pull requests | GitHub's own rules on the repository |
+| See the proposed changes on the website | The same as reading |
+| Approve a change on the website | Sign-in and write access to the docs repository, for a public one too. Approving merges the pull request as you, under GitHub's own rules on the repository |
+| Merge pull requests on GitHub | GitHub's own rules on the repository |
 
 ## Sign-in
 

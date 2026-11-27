@@ -10,7 +10,7 @@ Ohara stays focused on a few core features. This page lists what is planned next
 | Alignment instructions | Customize the instructions Ohara gives AI assistants, with docs on how |
 | API ingestion | Import and update documents through the API |
 | Chat agent | People search the docs, ask questions, and request updates from Ohara's website |
-| Edit tools | People edit and review pages from Ohara's website |
+| Edit tools | People edit pages from Ohara's website |
 | Auto update from source | After an import, a scheduled task keeps Ohara up to date with the source |
 | SSO | Sign in with Okta, Entra ID, and other identity providers, so people without a GitHub account can read the docs |
 | GitHub Enterprise Server | Use a docs repository and code repositories hosted on GitHub Enterprise Server |

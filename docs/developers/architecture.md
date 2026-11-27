@@ -14,11 +14,12 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | Module | Responsibility |
 |---|---|
 | `main.py` | Routes: setup, sign-in, docs API, the webhook, and the React app. Startup and background tasks |
-| `github.py` | Every GitHub call, through one shared client with a timeout, keeping only the fields Ohara uses: the app manifest, installation tokens, repository contents and tarballs, pull requests, user sign-in, webhook signatures |
+| `github.py` | Every GitHub call, through one shared client with a timeout, keeping only the fields Ohara uses: the app manifest, installation tokens, repository contents and tarballs, pull requests and their merge, user sign-in, webhook signatures |
 | `docs.py` | The snapshot: tarball extraction, navigation, page lookup, and the pages it puts in the search index |
 | `freshness.py` | Owners, verified dates, `covers`, stale flags, and front matter edits |
 | `appdocs.py` | The sync of code repositories' docs into `repositories/<repository>/` of the snapshot |
 | `appconfig.py` | Reading and validating `.ohara.yml` |
+| `changes.py` | The changes to review on the website: the docs repository's open pull requests, each page's text before and after, and the signature that names who proposed a change |
 | `mcp_server.py` | MCP tools and prompts, and the bearer-token guard on `/mcp`, which also asks anonymous callers of public docs to sign in for the tools that act as them |
 | `oauth.py` | The OAuth authorization server for MCP clients |
 | `sessions.py` | Sign-in sessions and the 5-minute access check |
@@ -36,7 +37,11 @@ Ohara is one FastAPI process that serves the React website, a JSON API, and an M
 | `Setup.tsx` | The setup page |
 | `Gate.tsx` | Sign-in and "no access" screens, and `Unreachable` when the server doesn't answer |
 | `Consent.tsx` | Approving an MCP client |
-| `Docs.tsx` | The docs reader: menu with a title filter (`/`, ⌘K, or Ctrl K), breadcrumbs, page, previous and next links, edit link, code blocks with a copy button, Mermaid diagrams, and sign out |
+| `Docs.tsx` | The docs reader: menu with a title filter (`/`, ⌘K, or Ctrl K) and the count of changes to review, breadcrumbs, page, previous and next links, edit link, and sign out |
+| `Markdown.tsx` | Renders Markdown: links, images, code blocks with a copy button, Mermaid diagrams |
+| `Changes.tsx` | The list of changes to review, at `/-/changes` |
+| `Change.tsx` | One change, at `/-/changes/<number>`: each page with what the change removes and adds, and its approval |
+| `diff.ts` | Compares two versions of a page, block by block, then line by line and word by word, and marks the result for `Markdown.tsx` |
 | `nav.ts` | The reading order for previous and next links, and the breadcrumb trail |
 | `links.ts` | Resolves relative Markdown links to site routes and file URLs |
 | `Mark.tsx` | The Ohara logo |
@@ -102,8 +107,8 @@ To check access, Ohara reads the docs repository with the user's own token. A us
 
 | Token | Belongs to | Used for |
 |---|---|---|
-| Installation token | The app | Downloading docs, reading repositories, and opening pull requests |
-| User token | Each user | Checking what that user may read or write. Never leaves the server |
+| Installation token | The app | Downloading docs, reading repositories and pull requests, and opening pull requests |
+| User token | Each user | Checking what that user may read or write, and merging the changes they approve. Never leaves the server |
 | `oha_` tokens | Each MCP grant | Calling `/mcp` |
 | GitHub token as bearer | CI and headless agents | Calling `/mcp`, with the same checks as a user token |
 
@@ -118,6 +123,12 @@ To check access, Ohara reads the docs repository with the user's own token. A us
 | `ohara/<slug>-<random>` | Every other proposal. The slug is the title in lowercase, other characters as `-`, cut to 40 characters |
 
 In `<project>/<branch>`, characters other than letters, digits, `_` and `-` become `-`. When a branch has an open pull request, the commits go to it with a comment that holds the title and description. A branch left from a closed pull request is reset to the default branch first, so it holds only the new change.
+
+## Review on the website
+
+The website lists the docs repository's open pull requests at `/-/changes`, a path no page can have. `changes.py` reads them with the installation token, so every reader of the docs sees them, and keeps the list for a minute. For one pull request, it compares the last commit with the commit the branch started from, and loads each changed page at both, without front matter. The browser computes the differences (`diff.ts`) and renders them as the page, with removed text struck and added text tinted. Code and HTML blocks show whole, as removed or added.
+
+Approving merges the pull request with the approver's own token, so GitHub applies their rights and the repository's rules, and the merge carries their name. Ohara sends the last commit the approver saw: GitHub refuses when the pull request changed since. Ohara uses the first merge method the repository allows: merge commit, squash, then rebase. After the merge, the snapshot updates as for any push.
 
 ## Freshness flags
 
