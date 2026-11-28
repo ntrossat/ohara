@@ -137,6 +137,7 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
     The app must be installed on a code repository for pushes to flag the pages that cover its code, and for its
     docs to be synced into Ohara.
     When it is not, returns the GitHub page where an admin of the repository's account adds it to the installation.
+    When it is but past this Ohara's limit of code repositories, says so.
     When it is, returns the paths whose docs are synced (from the repository's .ohara.yml, none without it) and
     their folder in Ohara, or why they are not synced.
     """
@@ -151,7 +152,12 @@ async def check_repository(repository: str, ctx: Context) -> Connection:
         reason = f"The Ohara GitHub App is private to the {account} account, so it can only be installed on {account} repositories."
         return Connection(connected=False, reason=reason)
     token = await github.installation_token(settings["app"], settings["installation_id"])
-    repos = {repo["full_name"].lower() for repo in await github.installation_repos(token)}
+    installed = await github.installation_repos(token)
+    repos = {repo["full_name"].lower() for repo in installed}
+    code = {repo["full_name"].lower() for repo in appdocs.connected(installed, settings["repo"]["full_name"])}
+    if repository.lower() in repos - code and repository.lower() != settings["repo"]["full_name"].lower():
+        reason = f"This Ohara's limit of code repositories is {config.max_code_repositories()}, and {repository} is past it."
+        return Connection(connected=False, reason=reason)
     if repository.lower() in repos:
         record = appdocs.state(repository) or {}
         folder = appdocs.folder(record["name"]) if record.get("name") and not record.get("skipped") else ""

@@ -38,6 +38,13 @@ def state(full_name: str) -> dict | None:
     return db.get("app", full_name.lower())
 
 
+def connected(repos: list[dict], docs_repo: str) -> list[dict]:
+    """The code repositories Ohara works with, among those on the installation: every one but the docs repository,
+    or the first `OHARA_MAX_CODE_REPOSITORIES` of them, in GitHub's order."""
+    code = [repo for repo in repos if repo["full_name"] != docs_repo]
+    return code[: config.max_code_repositories()]
+
+
 def private_into_public(code_private: bool, settings: dict) -> bool:
     return code_private and not settings["repo"]["private"]
 

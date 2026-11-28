@@ -292,6 +292,53 @@ def test_a_push_without_a_config_file_does_not_sync(configure, calls):
     assert calls == []
 
 
+# Limit
+
+
+def repository(full_name):
+    return {"full_name": full_name, "name": full_name.split("/")[-1], "private": False, "default_branch": "main"}
+
+
+def test_every_code_repository_is_connected_without_a_limit():
+    repos = [repository(name) for name in [REPO, "acme/api", "acme/web"]]
+    assert [repo["full_name"] for repo in appdocs.connected(repos, REPO)] == ["acme/api", "acme/web"]
+
+
+def test_the_limit_connects_the_first_code_repositories(monkeypatch):
+    monkeypatch.setenv("OHARA_MAX_CODE_REPOSITORIES", "1")
+    repos = [repository(name) for name in ["acme/api", REPO, "acme/web"]]
+    assert [repo["full_name"] for repo in appdocs.connected(repos, REPO)] == ["acme/api"]
+    monkeypatch.setenv("OHARA_MAX_CODE_REPOSITORIES", "0")
+    assert appdocs.connected(repos, REPO) == []
+
+
+def test_with_a_limit_added_and_removed_repositories_sync_every_app_again(client, configure, calls, monkeypatch):
+    monkeypatch.setenv("OHARA_MAX_CODE_REPOSITORIES", "1")
+    configure(private=False)
+    payload = {"installation": {"id": 42}, "repositories_added": [{"full_name": "acme/web"}], "repositories_removed": []}
+    assert send(client, "installation_repositories", payload).json()["repositories"] is True
+    assert calls == [("sync all",)]
+
+
+def test_a_push_to_a_repository_past_the_limit_is_left_alone(configure, calls, monkeypatch):
+    async def token(app, installation_id):
+        return "ghs_app"
+
+    async def repos(token):
+        return [repository(name) for name in [REPO, "acme/api", "acme/web"]]
+
+    monkeypatch.setenv("OHARA_MAX_CODE_REPOSITORIES", "1")
+    monkeypatch.setattr(main.github, "installation_token", token)
+    monkeypatch.setattr(main.github, "installation_repos", repos)
+    configure(private=False)
+    for name in ["acme/api", "acme/web"]:
+        db.put("app", name, {"name": name.split("/")[-1], "branch": "main", "paths": ["docs"], "skipped": None})
+    asyncio.run(main.check_code(push("acme/web", ["docs/a.md"], before="0" * 40)))
+    assert calls == []
+    asyncio.run(main.check_code(push("acme/api", ["docs/a.md"], before="0" * 40)))
+    assert calls == [("sync", "acme/api", "b" * 40)]
+
+
 def test_synced_pages_link_to_their_source(client, configure, data_dir):
     configure(private=False)
     db.put("app", "acme/api", {"name": "api", "branch": "trunk", "paths": ["docs"], "skipped": None})

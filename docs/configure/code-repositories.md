@@ -16,6 +16,8 @@ Install the GitHub App on it: at setup, next to the docs repository, or later in
 
 The app is private to the account that created it, so only that account's repositories can be connected.
 
+A host can limit the number of code repositories with `OHARA_MAX_CODE_REPOSITORIES` (see [Settings](../install/README.md#settings)). Ohara then works with the first ones the app is installed on, in GitHub's order: pushes to the others flag nothing, their docs aren't synced, and `check_repository` says the repository is past the limit. Removing a repository from the installation makes room for the next one.
+
 In code repositories, Ohara only reads which files changed and the docs of those that opt in to the sync. It never writes to them.
 
 ## Flag pages when code changes

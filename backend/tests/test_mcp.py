@@ -478,6 +478,17 @@ def test_check_repository_finds_a_connected_repository(mcp, configure):
 
 
 @respx.mock
+def test_check_repository_explains_the_limit(mcp, configure, monkeypatch):
+    monkeypatch.setenv("OHARA_MAX_CODE_REPOSITORIES", "1")
+    configure(private=False)
+    mock_installation([REPO, "acme/api", "acme/web"])
+    assert result(call(mcp, "check_repository", token="ghp_1", repository="acme/api"))["structuredContent"]["connected"] is True
+    answer = result(call(mcp, "check_repository", token="ghp_1", repository="acme/web"))["structuredContent"]
+    assert answer["connected"] is False and not answer["settings_url"]
+    assert answer["reason"] == "This Ohara's limit of code repositories is 1, and acme/web is past it."
+
+
+@respx.mock
 def test_check_repository_links_to_the_installation_settings(mcp, configure):
     configure(private=False)
     mock_installation([REPO])
