@@ -63,11 +63,10 @@ async def startup() -> None:
 
 
 async def sync_repositories() -> None:
-    """Sync the docs of every code repository on the installation, and remove the synced folders of
-    repositories that are no longer on it."""
+    """Sync the docs of every connected code repository, and remove the synced folders of those that no longer are."""
     settings = store.load()
     token = await github.installation_token(settings["app"], settings["installation_id"])
-    repos = [repo for repo in await github.installation_repos(token) if repo["full_name"] != settings["repo"]["full_name"]]
+    repos = appdocs.connected(await github.installation_repos(token), settings["repo"]["full_name"])
     for repo in repos:
         await safe_sync_app(repo["full_name"])
     owner = settings["repo"]["full_name"].split("/")[0]
@@ -568,6 +567,9 @@ async def webhook(request: Request, background: BackgroundTasks) -> dict:
     payload = json.loads(body)
     event = request.headers.get("X-GitHub-Event")
     if repo and event == "installation_repositories" and payload.get("installation", {}).get("id") == settings.get("installation_id"):
+        if config.max_code_repositories() is not None:  # an added or removed repository changes which ones are connected
+            background.add_task(safe_sync_repositories)
+            return {"synced": False, "repositories": True}
         for added in payload.get("repositories_added", []):
             background.add_task(safe_sync_app, added["full_name"])
         for removed in payload.get("repositories_removed", []):
@@ -592,9 +594,15 @@ async def webhook(request: Request, background: BackgroundTasks) -> dict:
 
 
 async def check_code(payload: dict) -> None:
-    """Sync the app docs a push changed, and flag the docs pages that cover the changed code."""
+    """Sync the app docs a push changed, and flag the docs pages that cover the changed code. A repository past
+    `OHARA_MAX_CODE_REPOSITORIES` is left alone."""
     settings = store.load()
     full_name, before, after = payload["repository"]["full_name"], payload["before"], payload["after"]
+    if config.max_code_repositories() is not None:
+        token = await github.installation_token(settings["app"], settings["installation_id"])
+        repos = appdocs.connected(await github.installation_repos(token), settings["repo"]["full_name"])
+        if full_name not in {repo["full_name"] for repo in repos}:
+            return
     if set(before) == {"0"}:  # a new branch: no previous commit to compare with
         commits = payload.get("commits", [])
         files = sorted({name for commit in commits for key in ("added", "modified", "removed") for name in commit.get(key, [])})

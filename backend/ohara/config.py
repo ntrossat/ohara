@@ -20,6 +20,12 @@ def setup_token() -> str | None:
     return os.environ.get("OHARA_SETUP_TOKEN") or None
 
 
+def max_code_repositories() -> int | None:
+    """When set, Ohara works with that many code repositories at most. None means no limit."""
+    value = os.environ.get("OHARA_MAX_CODE_REPOSITORIES")
+    return int(value) if value else None
+
+
 def data_dir() -> Path:
     """The data volume: the docs snapshot and the database."""
     return Path(os.environ.get("OHARA_DATA_DIR", "/data"))
